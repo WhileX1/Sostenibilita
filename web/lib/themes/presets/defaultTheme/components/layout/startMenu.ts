@@ -14,12 +14,12 @@ import {
 } from "../../constants";
 
 export const startMenu = {
-  // Popover root: pinned to the bottom-left, just above the 30px taskbar.
+  // Popover root: pinned to the bottom-left, just above the 40px taskbar.
   // Outer raised bevel + a subtle drop shadow for separation from the
-  // wallpaper.
+  // wallpaper. Keep `bottom` in sync with `bottombar.root.height`.
   root: {
     position: "absolute",
-    bottom: "36px",
+    bottom: "40px",
     left: 0,
     minWidth: "260px",
     background: SURFACE_PRIMARY,

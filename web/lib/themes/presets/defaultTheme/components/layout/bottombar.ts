@@ -8,10 +8,13 @@ import {
 } from "../../constants";
 
 export const bottombar = {
-  // Taskbar root: thin beige strip with a single highlight line on top
-  // (Win2K had a one-pixel raised edge against the desktop wallpaper).
+  // Taskbar root: beige strip with a single highlight line on top (Win2K
+  // had a one-pixel raised edge against the desktop wallpaper). 40px is
+  // a touch taller than the historical 28-30px reference, but matches the
+  // larger title-bar buttons and gives the icons inside taskbar buttons a
+  // little more vertical breathing room.
   root: {
-    height: "36px",
+    height: "40px",
     flexShrink: 0,
     background: SURFACE_PRIMARY,
     color: TEXT_ON_PRIMARY,
@@ -34,7 +37,7 @@ export const bottombar = {
   // from the task list and the task list from the system tray.
   separator: {
     width: "2px",
-    height: "26px",
+    height: "30px",
     boxShadow: `inset 1px 0 0 ${BEVEL_DARK}, inset -1px 0 0 ${BEVEL_LIGHT}`,
     flexShrink: 0,
     margin: "0 3px",
@@ -55,7 +58,7 @@ export const bottombar = {
   systemTray: {
     display: "flex",
     alignItems: "center",
-    height: "28px",
+    height: "32px",
     padding: "0 10px",
     boxShadow: `inset 1px 1px 0 ${BEVEL_DARK}, inset -1px -1px 0 ${BEVEL_LIGHT}`,
     flexShrink: 0,

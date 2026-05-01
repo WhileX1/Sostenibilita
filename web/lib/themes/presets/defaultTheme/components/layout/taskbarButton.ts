@@ -12,9 +12,21 @@ export const taskbarButton = {
   // Default raised state — represents a "background" window. Padding kept
   // as longhand so rootActive can override sides without React's
   // shorthand-vs-longhand mix warning.
+  //
+  // `minWidth: 44px` is the icon-only fallback: enough room for the
+  // 8px+8px paddings, the 20px icon, and the 7px gap to the (collapsed)
+  // label. As more windows open and the flex container runs out of
+  // space, `flex-shrink: 1` distributes the deficit and the label
+  // ellipsizes progressively until only the icon remains. Beyond that we
+  // can't shrink further, but with a 13-window registry cap the worst
+  // case is 13 * 44 = 572px which fits in any practical viewport — so we
+  // never need horizontal scroll on the taskbar (and a horizontal
+  // scrollbar would clash with the Win2K aesthetic anyway). The `title`
+  // attribute on each button reveals the full name on hover when the
+  // label is hidden.
   root: {
-    height: "28px",
-    minWidth: "140px",
+    height: "32px",
+    minWidth: "44px",
     maxWidth: "220px",
     paddingTop: 0,
     paddingRight: "8px",

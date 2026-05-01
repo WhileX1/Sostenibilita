@@ -16,4 +16,10 @@ sostenibility:
 objective:
   - reporting CSRD
   - rating ESG
-  - strategy1
+  - strategy
+
+Stavo pensado, poi in futuro le formule non saranno hardcoded ma, 
+vorrei permettere all'utente di scrivere a mano (stile programmazione),
+magari ogni voce potrà essere aggiunta dall'utente,
+e poi scriverà la formula a mano,
+idelamente con una specie di autocomplete che gli suggerisce le variabili basandosi sulle lettere che sta scrivendo.

@@ -111,7 +111,7 @@ In the App Router, `dynamic()` does **not** server-render by default, which is e
 
 ## What this design does not do
 
-- **No window state persistence** across reloads — refreshing closes everything except the deep-linked window. Adding `redux-persist` (or a small `localStorage` middleware) is a future option.
+- **Window state persists across reloads** via a small `localStorage` layer in [`web/store/persist/persist.ts`](../../store/persist/persist.ts). The store dispatches a `HYDRATE` action from `Providers.tsx` after mount; the top-level reducer in [`store.ts`](../../store/store.ts) **merges** the persisted `windows` slice with whatever `useOpenWindowOnMount` may have already dispatched for a deep-linked route (a deep-link wins for `activeId`, but persisted ids are kept in `order`). `desktopIcons` and `esg` are replaced cleanly.
 - **No multi-instance per id** — opening "CO₂ Emissions" twice focuses the existing window instead of creating a second one. This matches the "one document, one window" model that fits ESG dashboard pages.
 - **No simultaneous windows** — by design, only one is on screen at a time. The taskbar still shows every open window (each a single click away). If a future page actually needs two-window comparison, the slice can grow back per-window state without changing the registry contract.
 - **No keyboard window navigation** (Alt+Tab, Alt+Space, etc.) — only mouse-driven interactions are wired up. The taskbar buttons are tab-focusable so keyboard-only users can still navigate between open windows; window contents themselves remain fully tab-navigable inside.

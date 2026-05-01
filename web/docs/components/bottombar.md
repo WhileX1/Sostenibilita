@@ -27,7 +27,7 @@ Together these implement the Win2K Start affordance:
 
 - The button is a `<button data-start-menu-trigger>` with the official Windows 1992-2001 SVG logo (`/Windows_Logo_(1992-2001).svg`) + the word **Start**. While the menu is open, the button stays visually pressed (`pressed = mouseDown || open`) — a Win2K signature.
 - The toggle fires on `click`, not `mousedown`, so the menu opens for both mouse users (after mouseup) and keyboard users (Enter/Space synthesize a click but never a mousedown). The slight loss of "instant" feel is the cost of being keyboard-reachable.
-- The menu is rendered as a sibling of the button (a child of `StartButton`, not portaled). This keeps it inside the bottombar's stacking context, but it positions itself with `bottom: 36px` so it floats above the 36px-tall taskbar.
+- The menu is rendered as a sibling of the button (a child of `StartButton`, not portaled). This keeps it inside the bottombar's stacking context, but it positions itself with `bottom: 40px` so it floats above the 40px-tall taskbar.
 
 The menu has two columns: a vertical "Sostenibilità" banner (CSS `writing-mode: vertical-rl` + `transform: rotate(180deg)` for bottom-to-top text) and a list of the four ESG **areas**. Each area row uses its dedicated SVG from `areaIconPath(area)` — see [`web/public/icons/areas/`](../../public/icons/areas/) — so the top-level rows look distinct from any of their child windows. Hovering / focusing an area expands a submenu showing that area's windows.
 
@@ -70,6 +70,12 @@ One per open window, sourced from `s.windows.order` — which is **insertion ord
   - inactive → `focusWindow(id)` + `router.replace(def.route)` (this id becomes the foreground window).
   - active   → `deactivateWindow()` (clicking the active button hides the foreground; every id stays open and on the taskbar). The URL is left alone.
 - The 16×16 icon is the same SVG used on the desktop and in the start menu — sized via `theme.taskbarButton.icon`, no per-area variants.
+
+### Overflow — shrink to icon, never scroll
+
+The task list is a flex row with `overflow: hidden` and the buttons are `flex-shrink: 1`. Each button's natural width sits between `minWidth: 44px` (icon-only fallback) and `maxWidth: 220px` (comfortable label width). As more windows open, flex distributes the deficit across the row and labels ellipsize until they collapse to 0; below that, each button is just an icon. The full title is still reachable through the `title` attribute on the button (native tooltip).
+
+We deliberately don't make the task list horizontally scrollable. With a 13-window registry cap, even the worst case is `13 × 44 = 572px` — fits in any practical viewport — and a horizontal scrollbar at screen bottom would clash with the Win2K aesthetic (which never had one; classic Windows just shrunk the buttons). If the registry ever grew beyond what fits at icon width, that's the moment to revisit, not before.
 
 ## Clock
 

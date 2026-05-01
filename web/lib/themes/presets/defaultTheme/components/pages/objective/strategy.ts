@@ -15,13 +15,27 @@ import {
 // keys (sized for text, not icons), separate from `theme.window.iconButton*`
 // which is sized for the title bar's 26×24 chrome glyphs.
 export const strategy = {
+  // Spacing here is calibrated to fit the full Strategy form (header +
+  // 3 fieldsets + footer, 10 rows total) inside the default 80%-of-desktop
+  // window at browser zoom 100% on a typical 1080p viewport, without an
+  // inner scrollbar. The three knobs below — page gap, fieldset padding,
+  // and row padding — together recover ~50px of vertical space versus
+  // their natural defaults; if you push any of them back up, the page
+  // starts to overflow at the lower end of common viewport sizes.
+  //
+  // `minHeight: 100%` makes the page fill the bodyContent's available
+  // height. Combined with `marginTop: auto` on the footer below, this
+  // pins the Reset row to the bottom of the window — Win2K dialog
+  // convention — and lets any leftover vertical space sit between the
+  // last fieldset and the footer rather than dangling below the form.
   page: {
     fontFamily: FONT_SANS,
     color: TEXT_ON_PRIMARY,
     fontSize: "13px",
     display: "flex",
     flexDirection: "column",
-    gap: "16px",
+    gap: "12px",
+    minHeight: "100%",
   } as CSSProperties,
 
   header: {
@@ -80,7 +94,7 @@ export const strategy = {
 
   fieldset: {
     border: `1px solid ${BEVEL_DARK}`,
-    padding: "8px 12px 12px",
+    padding: "6px 12px 8px",
     margin: 0,
   } as CSSProperties,
 
@@ -94,7 +108,7 @@ export const strategy = {
     gridTemplateColumns: "minmax(140px, 1fr) 2fr 56px 64px",
     alignItems: "center",
     gap: "12px",
-    padding: "4px 0",
+    padding: "3px 0",
   } as CSSProperties,
 
   rowLabel: {
@@ -118,6 +132,12 @@ export const strategy = {
     justifyContent: "space-between",
     alignItems: "center",
     gap: "16px",
+    // Push the footer to the bottom of the page (which itself fills
+    // bodyContent via `minHeight: 100%` above). When the form's natural
+    // height is less than the available space, the surplus shows up as a
+    // single gap between the last fieldset and the footer instead of
+    // dead air below the Reset row.
+    marginTop: "auto",
   } as CSSProperties,
 
   totals: {

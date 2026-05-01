@@ -12,7 +12,7 @@ export const startButton = {
   // kept as longhand so rootPressed can shift individual sides without
   // mixing shorthand and longhand (React would warn).
   root: {
-    height: "28px",
+    height: "32px",
     minWidth: "72px",
     paddingTop: 0,
     paddingRight: "8px",

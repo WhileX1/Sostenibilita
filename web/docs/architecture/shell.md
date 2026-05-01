@@ -9,7 +9,7 @@ The root layout assembles a Win2K-style two-row vertical stack inside the `<body
 │   • icons (absolute, side-anchored, draggable)   │
 │   • foreground window (centered 80% or full)     │
 ├──────────────────────────────────────────────────┤
-│ Bottombar                    (36px, taskbar)     │
+│ Bottombar                    (40px, taskbar)     │
 └──────────────────────────────────────────────────┘
 ```
 

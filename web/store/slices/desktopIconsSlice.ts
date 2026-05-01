@@ -26,7 +26,9 @@ interface DesktopIconsState {
 
 // Default seed: split icons roughly half-and-half between the left and
 // right edges, single column on each side, top-down by registry order.
-function autoPosition(index: number, total: number): IconPosition {
+// Exported so the persistence sanitizer can fall back to a default cell
+// for any registry id that wasn't present in the previous session.
+export function autoPosition(index: number, total: number): IconPosition {
   const halfPoint = Math.ceil(total / 2);
   const isLeft = index < halfPoint;
   return {

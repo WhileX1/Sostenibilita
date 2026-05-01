@@ -77,6 +77,40 @@ export function StartMenu({
   // by the keyboard handlers to move focus across the menu.
   const areaRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const submenuRefs = useRef<(HTMLButtonElement | null)[][]>([]);
+  // Hover-intent timer for closing the submenu. The submenu is positioned
+  // relative to the StartMenu root (anchored above the taskbar regardless
+  // of which row triggered it), so there's a horizontal gap between an
+  // area row and its submenu — the cursor naturally crosses empty space
+  // on its way over. Without a delay, that brief "outside both" moment
+  // fires `onMouseLeave` on the row wrapper and unmounts the submenu
+  // before the user gets there. 250ms is short enough to feel snappy,
+  // long enough to cover a deliberate diagonal traversal.
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelScheduledClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+
+  const scheduleClose = (area: WindowArea) => {
+    cancelScheduledClose();
+    closeTimer.current = setTimeout(() => {
+      // Only clear openArea if it's still the area whose row was left.
+      // A faster mouseEnter on a different area will already have set
+      // openArea elsewhere, and we don't want this stale timer to undo
+      // that.
+      setOpenArea((a) => (a === area ? null : a));
+      closeTimer.current = null;
+    }, 250);
+  };
+
+  // Clear any pending close on unmount so a stale timer doesn't fire
+  // setState on a torn-down tree.
+  useEffect(() => {
+    return () => cancelScheduledClose();
+  }, []);
 
   // Close on Esc and on click anywhere outside the menu (or its trigger).
   // The Start button's click handler also dismisses the menu, but its
@@ -206,16 +240,24 @@ export function StartMenu({
           // from any of its child windows.
           const headerIcon = areaIconPath(area);
           return (
-            // Wrapper div so the cursor can travel between the parent row
-            // and its submenu without firing onMouseLeave between them
-            // (would close the submenu mid-traversal). Intentionally NOT
+            // Wrapper div groups the parent row with its submenu so the
+            // cursor traveling between them counts as "still inside" for
+            // hit-testing (the submenu is a DOM descendant of this div even
+            // though it paints far to the right). Intentionally NOT
             // `position: relative` — the submenu is positioned relative to
             // the start menu root (anchored to its bottom edge, above the
-            // taskbar) regardless of which row triggered it.
+            // taskbar) regardless of which row triggered it. That choice
+            // creates a visual gap between row and submenu, so the close
+            // is delayed via `scheduleClose` and any subsequent mouseEnter
+            // (this row's, an adjacent row's, or the submenu's own DOM
+            // ancestry) cancels it.
             <div
               key={area}
-              onMouseEnter={() => setOpenArea(area)}
-              onMouseLeave={() => setOpenArea((a) => (a === area ? null : a))}
+              onMouseEnter={() => {
+                cancelScheduledClose();
+                setOpenArea(area);
+              }}
+              onMouseLeave={() => scheduleClose(area)}
             >
               <button
                 ref={(el) => {

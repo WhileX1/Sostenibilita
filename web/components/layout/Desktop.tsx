@@ -185,7 +185,7 @@ function resolveIconRenderCells(
 
 // Sets the document body's text-selection lock during a drag. Returns a
 // cleanup function that restores the previous value. Without this, dragging
-// near label-bearing chrome (taskbar, topbar) accidentally highlights text.
+// near label-bearing chrome (taskbar) accidentally highlights text.
 function lockBodyUserSelect(): () => void {
   const prev = document.body.style.userSelect;
   document.body.style.userSelect = "none";

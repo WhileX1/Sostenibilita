@@ -1,6 +1,6 @@
 # Desktop
 
-Wallpaper, icon grid, and the layer that hosts open windows. Sits between the topbar and the bottombar in the root layout and owns the absolute-positioned coordinate system every `Window` lives in.
+Wallpaper, icon grid, and the layer that hosts open windows. Fills the area above the bottombar in the root layout and owns the absolute-positioned coordinate system every `Window` lives in.
 
 - Component: [`web/components/layout/Desktop.tsx`](../../components/layout/Desktop.tsx)
 - Subcomponents: [`DesktopIcon.tsx`](../../components/layout/DesktopIcon.tsx), [`Window.tsx`](../../components/layout/Window.tsx)
@@ -11,8 +11,6 @@ Wallpaper, icon grid, and the layer that hosts open windows. Sits between the to
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ Topbar                                                   │
-├──────────────────────────────────────────────────────────┤
 │ ┌──┐                                              ┌──┐   │
 │ │EN│         ┌───────────────────────┐            │CD│   │
 │ │CO│         │ Window (centered 80%) │            │ET│   │
@@ -133,7 +131,7 @@ Switching foreground (taskbar click → `focusWindow`) changes `activeId`; React
 
 | Key         | Applied to                                                          |
 | ----------- | ------------------------------------------------------------------- |
-| `root`      | the `<div>` that fills the area between topbar and bottombar        |
+| `root`      | the `<div>` that fills the area above the bottombar                 |
 | `marquee`   | the absolute-positioned rubber-band rectangle drawn during drag-to-select |
 | `iconGrid`  | the absolute-positioned column-flow grid in the top-left corner     |
 

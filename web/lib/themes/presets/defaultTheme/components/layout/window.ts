@@ -45,7 +45,7 @@ export const window = {
 
   // Maximize override: fill the desktop area edge-to-edge. The window is
   // a child of `Desktop`, so `inset: 0` covers the wallpaper but leaves the
-  // topbar / bottombar alone — the app shell stays visible.
+  // bottombar alone — the taskbar stays visible.
   rootMaximized: {
     inset: 0,
   } as CSSProperties,

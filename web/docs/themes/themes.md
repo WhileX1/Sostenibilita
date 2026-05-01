@@ -17,7 +17,6 @@ web/lib/themes/
       index.ts                           ← assembler: composes the preset object + exports `Theme`
       components/                        ← mirror of web/components/ — one *.ts per component
         layout/
-          topbar.ts                      ← exposed as theme.topbar
           bottombar.ts                   ← exposed as theme.bottombar
           startButton.ts                 ← exposed as theme.startButton
           startMenu.ts                   ← exposed as theme.startMenu
@@ -55,7 +54,7 @@ Rules enforced by the structure:
 - Files inside `defaultTheme/` import primitives from `../../tokens` and aliases from `./constants` (or `../../constants` for component slices).
 - Component slices (`components/<area>/<name>.ts`) **never** import directly from `tokens.ts` — they go through `constants.ts`. This keeps the preset's semantic layer the single point of remapping.
 - `themeProvider.tsx` imports from `./themes`, **not** directly from a preset. This decoupling is the whole reason `themes.ts` exists.
-- Consumers (`Sidebar.tsx`, `Topbar.tsx`, `app/layout.tsx`, …) import from `@/lib/themes` only.
+- Consumers (`Window.tsx`, `StartButton.tsx`, `app/layout.tsx`, …) import from `@/lib/themes` only.
 
 ## Layer 0 — `tokens.ts`
 
@@ -85,7 +84,7 @@ Imports from `tokens.ts` and exposes the names the rest of the preset uses:
 | Start menu      | `START_MENU_BANNER`, `TEXT_ON_START_MENU_BANNER`                                                       |
 | Typography      | `FONT_SANS`                                                                                            |
 
-Aliases use a `PRIMARY` / `SECONDARY` tier scheme — brightness-agnostic by design. `PRIMARY` is the dominant chrome surface (currently the sidebar), `SECONDARY` is the accent strip (currently the topbar). `ON_<tier>` qualifies content that sits on a given surface; `_STRONG` / `_MUTED` are emphasis variants. A future preset may invert which tier is dark or light without renaming.
+Aliases use a `PRIMARY` / `SECONDARY` tier scheme — brightness-agnostic by design. `PRIMARY` is the dominant chrome surface (the bottombar, window frames, buttons), `SECONDARY` is the accent gradient (currently the active window title bar and the Start menu's vertical banner). `ON_<tier>` qualifies content that sits on a given surface; `_STRONG` / `_MUTED` are emphasis variants. A future preset may invert which tier is dark or light without renaming.
 
 These are the only names component slices are expected to use. Changing what they map to in `constants.ts` propagates everywhere downstream — that's the whole point.
 
@@ -95,7 +94,6 @@ Mirror of `web/components/`. A file here = a component reachable through `theme.
 
 | File                                       | Exposed as            | Component                                                            |
 | ------------------------------------------ | --------------------- | -------------------------------------------------------------------- |
-| `components/layout/topbar.ts`              | `theme.topbar`        | [`Topbar.tsx`](../../components/layout/Topbar.tsx)                   |
 | `components/layout/bottombar.ts`           | `theme.bottombar`     | [`Bottombar.tsx`](../../components/layout/Bottombar.tsx)             |
 | `components/layout/startButton.ts`         | `theme.startButton`   | [`StartButton.tsx`](../../components/layout/StartButton.tsx)         |
 | `components/layout/startMenu.ts`           | `theme.startMenu`     | [`StartMenu.tsx`](../../components/layout/StartMenu.tsx)             |
@@ -128,7 +126,6 @@ Currently this means: the Win2K range slider (`.win2k-slider`) used in `Strategy
 Pure import-and-spread. Order in the export object doesn't matter at runtime, but the existing convention groups by surface (chrome bars first, then desktop, then windows, then atoms):
 
 ```ts
-import { topbar } from "./components/layout/topbar";
 import { bottombar } from "./components/layout/bottombar";
 import { startButton } from "./components/layout/startButton";
 import { startMenu } from "./components/layout/startMenu";
@@ -140,7 +137,7 @@ import { clock } from "./components/layout/clock";
 import { strategy as objectiveStrategy } from "./components/pages/objective/strategy";
 
 export const defaultTheme = {
-  topbar, bottombar, startButton, startMenu,
+  bottombar, startButton, startMenu,
   desktop, desktopIcon, window, taskbarButton, clock,
   pages: {
     objective: { strategy: objectiveStrategy },
@@ -203,7 +200,7 @@ Importing from internal paths (`@/lib/themes/themeProvider`, `@/lib/themes/prese
 3. Re-export it in `defaultTheme/index.ts`:
    ```ts
    import { foo } from "./components/<area>/<name>";
-   export const defaultTheme = { sidebar, topbar, foo } as const;
+   export const defaultTheme = { bottombar, window, foo } as const;
    ```
 4. Consume in the React component via `theme.foo.<key>`.
 

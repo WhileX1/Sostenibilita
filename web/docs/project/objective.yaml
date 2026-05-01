@@ -1,11 +1,11 @@
 sostenibility:
-  enviromental:
+  environmental:
     - energy consumption
     - CO2 emissions
     - water usage
     - waste management
   social:
-    - human resouces
+    - human resources
     - inclusivity
     - health and safety
   governance:
@@ -16,4 +16,4 @@ sostenibility:
 objective:
   - reporting CSRD
   - rating ESG
-  - strategy
+  - strategy1

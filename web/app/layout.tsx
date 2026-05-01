@@ -3,7 +3,6 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/store/Providers";
 import { ThemeProvider } from "@/lib/themes";
-import { Topbar } from "@/components/layout/Topbar";
 import { Bottombar } from "@/components/layout/Bottombar";
 import { Desktop } from "@/components/layout/Desktop";
 
@@ -44,12 +43,11 @@ export default function RootLayout({
       <body className="h-full">
         <Providers>
           <ThemeProvider>
-            {/* Three-row vertical stack: topbar (fixed) / desktop (flex 1)
-                / bottombar (fixed). The Desktop owns the absolute-positioned
-                window layer and receives `children` so each route's page.tsx
-                can dispatch its openWindow side-effect. */}
+            {/* Two-row vertical stack: desktop (flex 1) / bottombar
+                (fixed). The Desktop owns the absolute-positioned window
+                layer and receives `children` so each route's page.tsx can
+                dispatch its openWindow side-effect. */}
             <div className="flex h-screen flex-col">
-              <Topbar />
               <Desktop>{children}</Desktop>
               <Bottombar />
             </div>

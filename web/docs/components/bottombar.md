@@ -5,7 +5,7 @@ Win2K-style taskbar pinned to the bottom of the viewport. Hosts the Start button
 - Component: [`web/components/layout/Bottombar.tsx`](../../components/layout/Bottombar.tsx)
 - Subcomponents: [`StartButton.tsx`](../../components/layout/StartButton.tsx), [`StartMenu.tsx`](../../components/layout/StartMenu.tsx), [`TaskbarButton.tsx`](../../components/layout/TaskbarButton.tsx), [`Clock.tsx`](../../components/layout/Clock.tsx)
 - Theme slices: [`bottombar.ts`](../../lib/themes/presets/defaultTheme/components/layout/bottombar.ts), [`startButton.ts`](../../lib/themes/presets/defaultTheme/components/layout/startButton.ts), [`startMenu.ts`](../../lib/themes/presets/defaultTheme/components/layout/startMenu.ts), [`taskbarButton.ts`](../../lib/themes/presets/defaultTheme/components/layout/taskbarButton.ts), [`clock.ts`](../../lib/themes/presets/defaultTheme/components/layout/clock.ts)
-- Mounted in: [`web/app/layout.tsx`](../../app/layout.tsx) (third row of the layout's flex column)
+- Mounted in: [`web/app/layout.tsx`](../../app/layout.tsx) (second row of the layout's flex column)
 
 ## Anatomy
 
@@ -29,7 +29,9 @@ Together these implement the Win2K Start affordance:
 - The toggle fires on `click`, not `mousedown`, so the menu opens for both mouse users (after mouseup) and keyboard users (Enter/Space synthesize a click but never a mousedown). The slight loss of "instant" feel is the cost of being keyboard-reachable.
 - The menu is rendered as a sibling of the button (a child of `StartButton`, not portaled). This keeps it inside the bottombar's stacking context, but it positions itself with `bottom: 36px` so it floats above the 36px-tall taskbar.
 
-The menu has two columns: a vertical "Sostenibilità" banner (CSS `writing-mode: vertical-rl` + `transform: rotate(180deg)` for bottom-to-top text) and a list of the four ESG **areas**. Each area row uses its dedicated SVG from `areaIconPath(area)` — see [`web/public/icons/areas/`](../../public/icons/areas/) — so the top-level rows look distinct from any of their child windows. Hovering / focusing an area expands a submenu showing that area's windows. The wrapping `<div>` around each area button + its submenu carries the `onMouseEnter` / `onMouseLeave`, so the cursor can travel from parent to submenu without firing a mouse-leave that would close it.
+The menu has two columns: a vertical "Sostenibilità" banner (CSS `writing-mode: vertical-rl` + `transform: rotate(180deg)` for bottom-to-top text) and a list of the four ESG **areas**. Each area row uses its dedicated SVG from `areaIconPath(area)` — see [`web/public/icons/areas/`](../../public/icons/areas/) — so the top-level rows look distinct from any of their child windows. Hovering / focusing an area expands a submenu showing that area's windows.
+
+The cursor traveling from an area row to its submenu has to cross a horizontal gap (the submenu is anchored to the start menu root, not the row, so it floats fixed at the right edge — see "Submenu positioning" below). To stop that gap traversal from accidentally closing the submenu, `mouseLeave` calls `scheduleClose(area)` instead of clearing `openArea` directly: a 250ms timer is started, and any subsequent `mouseEnter` (this row's, an adjacent row's, or the submenu's own ancestry — the submenu is a DOM descendant of the row wrapper) cancels it. The delay is short enough to feel snappy when the user actually intends to close (e.g., moving onto the desktop) and long enough to cover a deliberate diagonal traversal.
 
 ### Keyboard navigation
 

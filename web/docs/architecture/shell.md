@@ -1,11 +1,9 @@
 # App shell
 
-The root layout assembles a Win2K-style three-row vertical stack inside the `<body>`:
+The root layout assembles a Win2K-style two-row vertical stack inside the `<body>`:
 
 ```
 ┌──────────────────────────────────────────────────┐
-│ Topbar                       (28px, blue band)   │
-├──────────────────────────────────────────────────┤
 │ Desktop                      (flex 1)            │
 │   • wallpaper                                    │
 │   • icons (absolute, side-anchored, draggable)   │
@@ -17,7 +15,6 @@ The root layout assembles a Win2K-style three-row vertical stack inside the `<bo
 
 Each row is documented separately:
 
-- [Topbar](../components/topbar.md)
 - [Desktop](../components/desktop.md) — also covers icons, marquee selection, and the lifted drag pattern
 - [Bottombar](../components/bottombar.md) — Start button + Start menu + taskbar buttons + clock
 - [Window manager](window-manager.md) — Redux slice, registry, deep-link routing, single-foreground rendering, min/max
@@ -57,11 +54,11 @@ The current layout already degrades reasonably under high browser zoom: the cent
 
 Two layers prevent accidental text selection:
 
-1. **Chrome elements** that don't host editable content explicitly set `userSelect: "none"` in their theme slice — `topbar`, `bottombar`, `taskbarButton`, `startButton`, `desktopIcon`. This stops a single click from highlighting their labels.
+1. **Chrome elements** that don't host editable content explicitly set `userSelect: "none"` in their theme slice — `bottombar`, `taskbarButton`, `startButton`, `desktopIcon`. This stops a single click from highlighting their labels.
 2. **During an active drag** (icon drag, marquee selection), the handler that registers document-level `mousemove` / `mouseup` listeners also flips `document.body.style.userSelect = "none"` and restores it on release. Without this, dragging across the page would highlight any text the cursor sweeps over.
 
 The two layers compose: chrome is permanently locked, the body gets locked only while a drag is in flight. The dynamic body lock is what catches the corner case where a marquee on the desktop sweeps over (for example) the bottombar — even though the bottombar itself is `user-select: none`, browser default behavior can still kick in if no explicit lock is on the body during the drag.
 
 ## The desktop is the only "live" surface
 
-Topbar and bottombar are presentational; all interactivity (drag, drop, click-to-select, marquee, double-click open, etc.) happens inside the desktop area or inside an open window. This keeps event handling simple — there's no event-routing layer between chrome and content.
+The bottombar is mostly presentational (Start button + taskbar buttons are interactive, but they only dispatch window-manager actions). All other interactivity (drag, drop, click-to-select, marquee, double-click open, etc.) happens inside the desktop area or inside an open window. This keeps event handling simple — there's no event-routing layer between chrome and content.

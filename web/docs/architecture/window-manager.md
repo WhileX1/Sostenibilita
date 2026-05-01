@@ -7,7 +7,7 @@ The app shell is a Win2K-style desktop with a single-foreground window model: on
 | Layer            | Role                                                                                | Lives in                                                                  |
 | ---------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Redux slice      | Source of truth: which windows are open, which one is active                        | [`web/store/slices/windowsSlice.ts`](../../store/slices/windowsSlice.ts)  |
-| Registry         | Static map of `id → { title, route, area, lazy Component }` + icon path helper     | [`web/lib/windows/registry.ts`](../../lib/windows/registry.ts)            |
+| Registry         | Static map of `id → { title, route, area, scored?, lazy Component }` + icon path helper | [`web/lib/windows/registry.ts`](../../lib/windows/registry.ts)            |
 | Mount hook       | Tiny client hook each route's `page.tsx` calls to translate URL → state             | [`web/lib/windows/useOpenWindowOnMount.ts`](../../lib/windows/useOpenWindowOnMount.ts) |
 | Window content   | The actual page UI, lazy-loaded via `next/dynamic`                                  | [`web/components/pages/<area>/<Name>.tsx`](../../components/pages/)       |
 | Window frame     | Title bar (with close button) + body. No drag, no resize, no min/max.               | [`web/components/layout/Window.tsx`](../../components/layout/Window.tsx)  |
@@ -58,7 +58,7 @@ Two paths produce the same result — `activeId = null`, every open id stays on 
 - Clicking the **minimize** glyph in the title bar dispatches `deactivateWindow()`.
 
 ### Maximize / restore
-The **maximize** glyph in the title bar dispatches `toggleMaximize(id)`. When `maximized[id]` is set, the window root applies `theme.window.rootMaximized` (`inset: 0`), filling the desktop edge-to-edge over the wallpaper but **not** the topbar / bottombar — the window is a child of `Desktop`, so its 0-inset stops at the desktop's bounds. The glyph swaps to the "restore" cascade-of-squares; clicking again removes the flag and the window returns to centered 80%.
+The **maximize** glyph in the title bar dispatches `toggleMaximize(id)`. When `maximized[id]` is set, the window root applies `theme.window.rootMaximized` (`inset: 0`), filling the desktop edge-to-edge over the wallpaper but **not** the bottombar — the window is a child of `Desktop`, so its 0-inset stops at the desktop's bounds. The glyph swaps to the "restore" cascade-of-squares; clicking again removes the flag and the window returns to centered 80%.
 
 The flag is per-id: switching foreground to a different window and back preserves whether the user had it maximized.
 

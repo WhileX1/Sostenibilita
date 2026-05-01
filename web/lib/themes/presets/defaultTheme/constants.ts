@@ -34,8 +34,8 @@ export const TEXT_ON_PRIMARY_MUTED  = COLORS.black;
 export const ACCENT_PRIMARY         = COLORS.blue900;
 export const TEXT_ON_ACCENT_PRIMARY = COLORS.white;
 
-// Window title bar — active uses the same gradient as the topbar (consistent
-// "the blue strip is selected" cue across the app); inactive is a desaturated
+// Window title bar — active uses the SECONDARY surface gradient (the
+// canonical Win2K "active = blue gradient" cue); inactive is a desaturated
 // gray gradient. Text always white for max contrast on either gradient.
 export const TITLE_BAR_ACTIVE        = SURFACE_SECONDARY;
 export const TEXT_ON_TITLE_BAR_ACTIVE = COLORS.white;

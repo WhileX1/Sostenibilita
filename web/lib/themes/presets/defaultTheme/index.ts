@@ -1,4 +1,3 @@
-import { topbar } from "./components/layout/topbar";
 import { bottombar } from "./components/layout/bottombar";
 import { startButton } from "./components/layout/startButton";
 import { startMenu } from "./components/layout/startMenu";
@@ -10,7 +9,6 @@ import { clock } from "./components/layout/clock";
 import { strategy as objectiveStrategy } from "./components/pages/objective/strategy";
 
 export const defaultTheme = {
-  topbar,
   bottombar,
   startButton,
   startMenu,

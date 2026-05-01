@@ -8,7 +8,7 @@ export const desktop = {
     backgroundImage: "url('/windows_og_background.jpg')",
     backgroundSize: "cover",
     backgroundPosition: "center",
-    // The desktop sits between the topbar and the bottombar. It owns the
+    // The desktop fills the area above the bottombar. It owns the
     // window-positioning coordinate system (windows are absolutely positioned
     // children), so we make sure stacking contexts are isolated.
     isolation: "isolate",

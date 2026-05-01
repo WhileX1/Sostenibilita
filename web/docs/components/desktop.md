@@ -52,7 +52,7 @@ Grid geometry lives in the slice:
 - `ICON_COL_WIDTH` = 100, `ICON_ROW_HEIGHT` = 92, `ICON_PADDING` = 12.
 - `autoPosition(index, total)` splits the registry roughly half-and-half between the two sides, single column on each, top-down by registry order. With 13 entries → 7 left + 6 right.
 - `snapToGrid(x, y, parentWidth)` snaps a dropped pixel position to the nearest cell on whichever side the icon ended up more in (the icon's center decides).
-- `iconPixelOf(pos, parentWidth)` translates a stored cell back into absolute pixels for the renderer (and for the drag-start snapshot).
+- `iconPixelOf(pos, parentWidth)` translates a stored cell back into absolute pixels — used by marquee intersection and the drag-start snapshot. The renderer itself does **not** call `iconPixelOf`; instead it uses `iconStyleOf(pos)` (defined in `Desktop.tsx`) which returns edge-anchored CSS (`{ left, top }` or `{ right, top }`), so right-side icons paint at the correct position without depending on `parentWidth`.
 
 ### Drag is owned by `Desktop`, not `DesktopIcon`
 
@@ -69,17 +69,25 @@ The Win2K-style "drag the whole selection at once" gesture means a single drag m
 
 Render path:
 
-- Icons that are part of the active drag render at `init + (dx, dy)` from the live `dragSession`.
-- Icons at rest render at the position chosen by `resolveIconRenderPositions(iconPositions, parentWidth, parentHeight)`. This is **non-destructive** — `iconPositions` in Redux is never mutated, so when the viewport grows back to its original size every icon returns to where it was.
+- Icons that are part of the active drag render at `init + (dx, dy)` from the live `dragSession`, using `{ left, top }` (absolute pixels). The drag uses `left:` for both sides because the drag math operates in screen-absolute pixels.
+- Icons at rest render via `iconStyleOf(cell)` — `{ left, top }` for left-side icons, `{ right, top }` for right-side icons — using the cell chosen by `resolveIconRenderCells(iconPositions, parentWidth, parentHeight)`. Resolution is **non-destructive** — `iconPositions` in Redux is never mutated, so when the viewport grows back to its original size every icon returns to where it was.
 
 ### Resize / zoom reflow
 
-`resolveIconRenderPositions` runs in two passes against the current grid (`maxCols × maxRows` derived from `parentSize` and the cell pitch exported by the slice):
+`resolveIconRenderCells` runs in two passes against the current grid (`maxCols × maxRows` derived from `parentSize` and the cell pitch exported by the slice):
 
 1. **Keep what fits** — every icon whose stored cell is in-bounds claims it, first-come first-served by registry order. The `setIconPosition` reducer prevents stored-cell duplicates so collisions in this pass don't normally happen.
 2. **Reflow overflow** — any icon whose stored cell is out of bounds is placed in the first free cell on its preferred side; if that side is full, it spills onto the other side. If both sides are full, the icon falls back to `(side: preferred, col: 0, row: 0)` — degraded but visible. Real workflows shouldn't hit this; the user can enlarge the desktop to recover their layout.
 
 Memoized with `useMemo` so the two-pass algorithm only runs when `iconPositions` or `parentSize` changes — not on every render.
+
+### Edge-anchored rendering — no parentWidth in the paint path
+
+Each icon renders with edge-anchored CSS: `{ left, top }` for `side: "left"`, `{ right, top }` for `side: "right"`. The browser handles the right-edge anchoring natively, so right-side icons paint at the correct position even on the SSR HTML, before any measurement has happened. The render path therefore does **not** depend on `parentWidth` — the resolver returns reflowed `(side, col, row)` cells, and the renderer translates each cell to the appropriate `{ left | right, top }` via `iconStyleOf`.
+
+`parentSize` is still measured (in a `useLayoutEffect` with a synchronous `getBoundingClientRect`, then a `ResizeObserver` for resize/zoom) — but only because the marquee intersection and the drag-start snapshot need absolute pixel coordinates (`iconPixelOf`). Both paths only fire from a user gesture, by which time the desktop is mounted and measured. Before measurement, the resolver short-circuits to the raw stored cells (skipping the two-pass reflow that would need `maxCols` / `maxRows`), and the render keeps working because `iconStyleOf` only needs the cell, not the parent size.
+
+A previous iteration computed absolute `x` for every icon (`parentWidth - padding - col_width - col*…` for right-side icons) and used `left:` for everyone. With `parentWidth = 0` on the first render, right-side icons painted at x = -112 and snapped to the edge a frame later — a visible flash. Edge-anchored CSS eliminates the dependency at the source.
 
 ### Click / double-click semantics (Win2K classic)
 
@@ -148,7 +156,8 @@ Switching foreground (taskbar click → `focusWindow`) changes `activeId`; React
 | `titleBarText`                     | the title text (truncates with ellipsis)                                                              |
 | `buttonGroup`                      | right-aligned cluster holding the minimize / maximize / close buttons                                 |
 | `iconButton` / `iconButtonHover` / `iconButtonFocus` / `iconButtonPressed` | shared shape for the three title-bar buttons; hover brightens the face, focus draws a dotted outline, pressed inverts the bevel |
-| `body`                             | the white "document" inner surface that hosts the lazy-loaded content                                 |
+| `body`                             | the white "document" outer surface — owns the sunken bevel and background; 2px of bevel-thickness padding so the scrollable child sits inside the bevel |
+| `bodyContent`                      | inner scroll container nested in `body` — owns `overflow: auto` and the page padding, so the scrollbar paints inside the sunken frame instead of on top of the top-right bevel corner |
 
 ## Window placement
 
@@ -156,4 +165,8 @@ The window has no per-instance geometry. Default: `theme.window.root` sets `posi
 
 ## Hover / focus / pressed tracking
 
-All three components track interaction via local `useState` (one per concern). The same pattern as the previous sidebar — necessary because inline styles can't express `:hover`/`:focus`/`:active`. The merge order is **base → hover → focus → active** for items, and **base → pressed** for buttons; pressed state is OR'd between mouse-down and "menu open" for the StartButton.
+Inline styles can't express `:hover` / `:focus` / `:active` pseudo-classes, so each interactive element tracks the three states explicitly. Buttons share a [`useButtonState()`](../../lib/ui/useButtonState.ts) hook that bundles the six event handlers (`onMouseEnter` / `Leave` / `Down` / `Up` / `Focus` / `Blur`) and returns `{ state, handlers }`; the call site spreads `handlers` onto the `<button>` and merges the matching theme keys (`base → hover → focus → pressed`) into the `style` prop. `mouseLeave` clears both hover and pressed so dragging off doesn't strand the bevel inverted.
+
+The StartButton is the one special case: pressed is OR'd with the menu-open flag, so the button stays visually pressed while the menu is open even after the mouse releases.
+
+The merge order is **base → hover → focus → pressed** for buttons; for items (e.g. `DesktopIcon`'s `rootHover` / `rootSelected`) it's **base → hover → focus → active**, with selected/active being a sticky state set by click rather than a transient pointer state.

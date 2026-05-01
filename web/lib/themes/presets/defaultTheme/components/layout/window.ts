@@ -139,19 +139,38 @@ export const window = {
   } as CSSProperties,
 
   // Window body: white "document" surface, sunken bevel relative to the
-  // beige frame so the boundary reads as an inset region.
+  // beige frame so the boundary reads as an inset region. The body is the
+  // outer frame only — it owns the bevel and the background, and reserves
+  // 2px of padding equal to the bevel thickness so the scrollable child
+  // sits visually inside the bevel. Without this split, an `overflow: auto`
+  // body would paint the scrollbar on top of the top-right bevel corner.
   body: {
     flex: 1,
     background: SURFACE_WINDOW,
     color: TEXT_ON_PRIMARY,
-    overflow: "auto",
-    padding: "16px",
+    overflow: "hidden",
+    padding: "2px",
     marginTop: "3px",
+    display: "flex",
+    flexDirection: "column",
     boxShadow: `
       inset 1px 1px 0 ${BEVEL_DARK},
       inset 2px 2px 0 ${BEVEL_SHADOW},
       inset -1px -1px 0 ${BEVEL_LIGHT},
       inset -2px -2px 0 ${BEVEL_HILITE}
     `,
+  } as CSSProperties,
+
+  // Inner scroll container — fills the body's content box (which is already
+  // inset by the 2px bevel-thickness padding above), owns the actual page
+  // padding, and is the element that scrolls. The scrollbar paints at this
+  // child's right edge, which is inside the body's bevel — same visual
+  // arrangement as a Win2K document window where the scrollbar lives
+  // inside the sunken frame, not on top of it.
+  bodyContent: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "auto",
+    padding: "14px",
   } as CSSProperties,
 } as const;

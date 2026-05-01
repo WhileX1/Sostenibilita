@@ -51,7 +51,7 @@ We deliberately do **not** cap desktop browser zoom, even though the user can dr
 1. **Accessibility.** Browser zoom is a primary accommodation for low-vision users, who routinely run at 200%-400%+. WCAG 2.1 SC 1.4.4 requires support up to 200%; capping it would push the experience below that bar for users who need it most.
 2. **No clean implementation.** The web platform doesn't expose browser zoom as an API. Estimating it from `outerWidth / innerWidth` is heuristic and varies by browser; "compensating" with `transform: scale()` on `<html>` breaks `position: fixed`, stacking contexts, and pointer-event coordinates.
 
-The current layout already degrades reasonably under high browser zoom: the centered window scales with the desktop (percentage-based), and the side-anchored icon grid reflows via `resolveIconRenderPositions` if columns no longer fit. At extreme zoom the icons collapse to the degraded fallback (col 0 of each side) — visible, even if cramped.
+The current layout already degrades reasonably under high browser zoom: the centered window scales with the desktop (percentage-based), and the side-anchored icon grid reflows via `resolveIconRenderCells` if columns no longer fit. At extreme zoom the icons collapse to the degraded fallback (col 0 of each side) — visible, even if cramped.
 
 ## User-select discipline
 

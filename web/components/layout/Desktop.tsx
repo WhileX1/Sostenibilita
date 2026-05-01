@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -64,10 +64,27 @@ function rectsIntersect(
   return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
 }
 
-// Compute a render position for every icon given the current desktop size.
-// Stored cells are side-anchored — column 0 hugs the chosen edge, columns
-// grow inward — so icons stay pinned to the left/right strips as the
-// desktop resizes (and stay visible behind a centered 80% window).
+// Render a stored cell as edge-anchored CSS — `left` for left-side icons,
+// `right` for right-side icons. The browser handles right-edge anchoring
+// natively, so right-side icons paint at the correct position even on the
+// SSR HTML before any measurement has happened. (Computing absolute pixels
+// from `parentWidth` and using `left:` for right icons is what produced the
+// on-load flash: `parentWidth = 0` gave x = -112, then ResizeObserver
+// fired and the icon snapped to the actual right edge.)
+function iconStyleOf(pos: IconPosition): {
+  left?: number;
+  right?: number;
+  top: number;
+} {
+  const offset = ICON_PADDING + pos.col * ICON_COL_WIDTH;
+  const top = ICON_PADDING + pos.row * ICON_ROW_HEIGHT;
+  return pos.side === "left" ? { left: offset, top } : { right: offset, top };
+}
+
+// Compute a render cell for every icon given the current desktop size.
+// Returns reflowed `(side, col, row)` triples — the renderer translates
+// those to CSS via `iconStyleOf`, and the marquee/drag handlers translate
+// to absolute pixels via `iconPixelOf` when they need pixel math.
 //
 // Two-pass to preserve user-set positions while reflowing overflow:
 //
@@ -83,20 +100,21 @@ function rectsIntersect(
 // `byId` in Redux is never mutated — when the desktop grows back to its
 // original size, every icon's stored cell becomes valid again and pass 1
 // places them where they were.
-function resolveIconRenderPositions(
+function resolveIconRenderCells(
   iconPositions: Record<string, IconPosition>,
   parentWidth: number,
   parentHeight: number,
-): Record<string, { x: number; y: number }> {
-  const result: Record<string, { x: number; y: number }> = {};
+): Record<string, IconPosition> {
+  const result: Record<string, IconPosition> = {};
 
-  // Before the ResizeObserver has fired, fall back to a parent-less pixel
-  // map (assume there is enough horizontal space). Every render after the
-  // first will have real measurements.
+  // Before measurement we can't run the two-pass reflow (we don't know
+  // maxCols / maxRows). Return the raw stored cells — they're valid by
+  // construction, and the renderer's edge-anchored CSS positions them
+  // correctly on both sides without needing parentWidth.
   if (parentWidth <= 0 || parentHeight <= 0) {
     for (const def of WINDOW_DEFINITIONS) {
       const pos = iconPositions[def.id];
-      if (pos) result[def.id] = iconPixelOf(pos, parentWidth);
+      if (pos) result[def.id] = pos;
     }
     return result;
   }
@@ -128,7 +146,7 @@ function resolveIconRenderPositions(
       const key = `${pos.side}:${pos.col}:${pos.row}`;
       if (!claimed.has(key)) {
         claimed.add(key);
-        result[def.id] = iconPixelOf(pos, parentWidth);
+        result[def.id] = pos;
         continue;
       }
     }
@@ -148,10 +166,7 @@ function resolveIconRenderPositions(
           const key = `${side}:${c}:${r}`;
           if (!claimed.has(key)) {
             claimed.add(key);
-            result[id] = iconPixelOf(
-              { side, col: c, row: r },
-              parentWidth,
-            );
+            result[id] = { side, col: c, row: r };
             placed = true;
             break outer;
           }
@@ -161,10 +176,7 @@ function resolveIconRenderPositions(
     // No free cell on either side — degraded fallback. Real workflows
     // shouldn't hit this; the user can enlarge the desktop to recover.
     if (!placed) {
-      result[id] = iconPixelOf(
-        { side: preferredSide, col: 0, row: 0 },
-        parentWidth,
-      );
+      result[id] = { side: preferredSide, col: 0, row: 0 };
     }
   }
 
@@ -212,9 +224,23 @@ export function Desktop({ children }: { children?: ReactNode }) {
   // bounds renders at the edge instead of vanishing. Stored state is
   // preserved — if the viewport grows back, icons return to their original
   // positions.
-  useEffect(() => {
+  //
+  // Uses `useLayoutEffect` (not `useEffect`) and a synchronous initial
+  // `getBoundingClientRect` so the first client paint after hydration
+  // already has real bounds. The flash-on-load that this used to fix is
+  // now also impossible at the render layer — icons paint via edge-
+  // anchored CSS and don't depend on `parentWidth` to be visible — but
+  // the synchronous measurement still matters: if the user marquees /
+  // drags before ResizeObserver's async first callback fires, the pixel
+  // math (`iconPixelOf`, intersection rects) would otherwise compute
+  // against a stale `{0, 0}`.
+  useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      setParentSize({ width: rect.width, height: rect.height });
+    }
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
@@ -225,11 +251,13 @@ export function Desktop({ children }: { children?: ReactNode }) {
     return () => ro.disconnect();
   }, []);
 
-  // Resolved render positions for non-dragged icons. Recomputed only when
-  // the inputs change so the two-pass algorithm doesn't run on every render.
-  const resolvedPositions = useMemo(
+  // Resolved (side, col, row) cells for every icon. Reflows overflow
+  // when the desktop shrinks; falls back to stored cells when not yet
+  // measured. Memoized so the two-pass algorithm doesn't run on every
+  // render.
+  const resolvedCells = useMemo(
     () =>
-      resolveIconRenderPositions(
+      resolveIconRenderCells(
         iconPositions,
         parentSize.width,
         parentSize.height,
@@ -405,20 +433,22 @@ export function Desktop({ children }: { children?: ReactNode }) {
       if (releaseUserSelect) releaseUserSelect();
       if (dragged && lastRect) {
         // Commit selection from the final rectangle. Marquee intersection
-        // uses the resolved render positions, not the raw stored cells —
-        // what the user sees and what they can sweep over has to match.
+        // uses the *resolved* cell (which accounts for resize-time reflow),
+        // converted to absolute pixels here — what the user sees and what
+        // they can sweep over has to match.
         const left = Math.min(lastRect.x1, lastRect.x2);
         const top = Math.min(lastRect.y1, lastRect.y2);
         const w = Math.abs(lastRect.x2 - lastRect.x1);
         const h = Math.abs(lastRect.y2 - lastRect.y1);
         const next = new Set<string>();
         for (const def of WINDOW_DEFINITIONS) {
-          const render = resolvedPositions[def.id];
-          if (!render) continue;
+          const cell = resolvedCells[def.id];
+          if (!cell) continue;
+          const { x: rx, y: ry } = iconPixelOf(cell, rect.width);
           if (
             rectsIntersect(
-              render.x,
-              render.y,
+              rx,
+              ry,
               ICON_BBOX_W,
               ICON_BBOX_H,
               left,
@@ -457,30 +487,29 @@ export function Desktop({ children }: { children?: ReactNode }) {
   return (
     <div ref={rootRef} style={theme.desktop.root} onMouseDown={handleDesktopMouseDown}>
       {WINDOW_DEFINITIONS.map((def) => {
-        const pos = iconPositions[def.id];
-        if (!pos) return null;
-        // During a drag, every icon in the session renders at `init + delta`
-        // (the handler already clamped the delta against bounds). At rest,
-        // the resolver decides where the icon goes — keeping a stored cell
-        // when it still fits, reflowing into the next free cell when not.
-        let renderX: number;
-        let renderY: number;
+        const cell = resolvedCells[def.id];
+        if (!cell) return null;
+        // During a drag, every icon in the session renders at absolute
+        // `init + delta` pixels (the handler already clamped the delta
+        // against bounds). At rest, the resolver gives a (side, col, row)
+        // and the renderer uses edge-anchored CSS — `right:` for right-
+        // side icons — so the SSR HTML and the first client paint have
+        // them at the correct position without depending on parentWidth.
+        let positionStyle: { left?: number; right?: number; top: number };
         const inDrag = dragSession?.ids.includes(def.id) ?? false;
         if (inDrag && dragSession) {
           const init = dragSession.initial[def.id];
-          renderX = init ? init.x + dragSession.dx : ICON_PADDING;
-          renderY = init ? init.y + dragSession.dy : ICON_PADDING;
+          positionStyle = init
+            ? { left: init.x + dragSession.dx, top: init.y + dragSession.dy }
+            : { left: ICON_PADDING, top: ICON_PADDING };
         } else {
-          const resolved = resolvedPositions[def.id];
-          renderX = resolved?.x ?? ICON_PADDING;
-          renderY = resolved?.y ?? ICON_PADDING;
+          positionStyle = iconStyleOf(cell);
         }
         return (
           <DesktopIcon
             key={def.id}
             def={def}
-            x={renderX}
-            y={renderY}
+            positionStyle={positionStyle}
             selected={selectedIds.has(def.id)}
             onMouseDown={handleIconMouseDown}
             onClick={handleIconClick}

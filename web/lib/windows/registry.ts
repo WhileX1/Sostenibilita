@@ -14,6 +14,14 @@ export interface WindowDefinition {
   title: string;
   route: string;
   area: WindowArea;
+  // Marks an entry as a measurable ESG metric that contributes to the
+  // overall score. The 10 E/S/G windows are flagged; the 3 Objective
+  // windows (Reporting CSRD, Rating ESG, Strategy) are *outputs* /
+  // configuration of the system itself and intentionally unflagged.
+  // `web/lib/scoring/config.ts` filters by this flag instead of by area,
+  // so a future Objective entry could be opted into scoring without
+  // reshuffling the area grouping.
+  scored?: boolean;
   // Lazy-loaded content. `next/dynamic` defers fetching the chunk until the
   // window actually mounts, so unopened pages cost nothing on initial load.
   Component: ComponentType;
@@ -27,6 +35,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "Energy Consumption",
     route: "/environmental/energy-consumption",
     area: "Environmental",
+    scored: true,
     Component: dynamic(
       () => import("@/components/pages/environmental/EnergyConsumption"),
     ),
@@ -36,6 +45,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "CO₂ Emissions",
     route: "/environmental/co2-emissions",
     area: "Environmental",
+    scored: true,
     Component: dynamic(
       () => import("@/components/pages/environmental/Co2Emissions"),
     ),
@@ -45,6 +55,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "Water Usage",
     route: "/environmental/water-usage",
     area: "Environmental",
+    scored: true,
     Component: dynamic(
       () => import("@/components/pages/environmental/WaterUsage"),
     ),
@@ -54,6 +65,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "Waste Management",
     route: "/environmental/waste-management",
     area: "Environmental",
+    scored: true,
     Component: dynamic(
       () => import("@/components/pages/environmental/WasteManagement"),
     ),
@@ -63,6 +75,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "Human Resources",
     route: "/social/human-resources",
     area: "Social",
+    scored: true,
     Component: dynamic(
       () => import("@/components/pages/social/HumanResources"),
     ),
@@ -72,6 +85,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "Inclusivity",
     route: "/social/inclusivity",
     area: "Social",
+    scored: true,
     Component: dynamic(
       () => import("@/components/pages/social/Inclusivity"),
     ),
@@ -81,6 +95,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "Health and Safety",
     route: "/social/health-and-safety",
     area: "Social",
+    scored: true,
     Component: dynamic(
       () => import("@/components/pages/social/HealthAndSafety"),
     ),
@@ -90,6 +105,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "CDA",
     route: "/governance/cda",
     area: "Governance",
+    scored: true,
     Component: dynamic(() => import("@/components/pages/governance/Cda")),
   },
   "governance/ethics-and-compliance": {
@@ -97,6 +113,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "Ethics and Compliance",
     route: "/governance/ethics-and-compliance",
     area: "Governance",
+    scored: true,
     Component: dynamic(
       () => import("@/components/pages/governance/EthicsAndCompliance"),
     ),
@@ -106,6 +123,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     title: "Supply Chain",
     route: "/governance/supply-chain",
     area: "Governance",
+    scored: true,
     Component: dynamic(
       () => import("@/components/pages/governance/SupplyChain"),
     ),

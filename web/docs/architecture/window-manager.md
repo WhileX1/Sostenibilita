@@ -87,6 +87,7 @@ The flow is **URL → state**, not the other way around. The URL reflects "the m
 - `title` — text for the title bar / taskbar button / start-menu label.
 - `route` — Next.js path. Used by `<Link>` / `router.push` for deep-link sync.
 - `area` — `"Environmental" | "Social" | "Governance" | "Objective"`. Used to group items in the Start menu submenus.
+- `scored?` — when `true`, this window is a measurable ESG metric and feeds the score (see [`scoring.md`](scoring.md)). The 10 E/S/G windows have it; the 3 Objective windows don't.
 - `Component` — the lazy-loaded page UI, declared as `dynamic(() => import("@/components/pages/..."))`.
 
 The icon for each window is resolved by the `iconPath(def)` helper, which returns `/icons/${id}.svg`. The SVG file lives in `web/public/icons/<area>/<slug>.svg`.

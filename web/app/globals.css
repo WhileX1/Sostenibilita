@@ -1,1 +1,114 @@
 @import "tailwindcss";
+
+/* Theme palette as CSS custom properties. Mirrors `web/lib/themes/tokens.ts`
+   — keep in sync if a value changes there. The properties are exposed for
+   rules that can't use inline styles (native pseudo-elements like
+   `::-webkit-slider-thumb`, `::-webkit-scrollbar*`, etc.); the rest of the
+   app reads colors via the JS theme system, not these vars. */
+:root {
+  --color-black:        #000000;
+  --color-white:        #FFFFFF;
+  --color-gray-200:     #DFDFDF;
+  --color-gray-500:     #808080;
+  --color-gray-700:     #404040;
+  --color-beige:        #D4D0C8;
+  --color-blue-100:     #A6CAF0;
+  --color-blue-900:     #0A246A;
+
+  /* Bevel aliases — match `web/lib/themes/presets/defaultTheme/constants.ts`. */
+  --bevel-light:        var(--color-white);
+  --bevel-hilite:       var(--color-gray-200);
+  --bevel-shadow:       var(--color-gray-500);
+  --bevel-dark:         var(--color-gray-700);
+
+  /* Surface aliases — same. */
+  --surface-primary:    var(--color-beige);
+}
+
+/* Win2K-style range slider. Native pseudo-elements (track, thumb) can't be
+   styled via inline styles, so the rules live here. Colors come from the
+   `:root` custom properties above so the JS theme system stays the only
+   place where hex values are declared. */
+.win2k-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 18px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Track — sunken bevel: dark on top-left, light on bottom-right. */
+.win2k-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--surface-primary);
+  box-shadow: inset 1px 1px 0 var(--bevel-dark), inset -1px -1px 0 var(--bevel-light);
+}
+.win2k-slider::-moz-range-track {
+  height: 4px;
+  background: var(--surface-primary);
+  box-shadow: inset 1px 1px 0 var(--bevel-dark), inset -1px -1px 0 var(--bevel-light);
+}
+
+/* Thumb — raised bevel block, classic Win2K vertical handle. */
+.win2k-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 18px;
+  background: var(--surface-primary);
+  border: none;
+  border-radius: 0;
+  margin-top: -7px;
+  box-shadow:
+    inset 1px 1px 0 var(--bevel-light),
+    inset 2px 2px 0 var(--bevel-hilite),
+    inset -1px -1px 0 var(--bevel-dark),
+    inset -2px -2px 0 var(--bevel-shadow);
+}
+.win2k-slider::-moz-range-thumb {
+  width: 12px;
+  height: 18px;
+  background: var(--surface-primary);
+  border: none;
+  border-radius: 0;
+  box-shadow:
+    inset 1px 1px 0 var(--bevel-light),
+    inset 2px 2px 0 var(--bevel-hilite),
+    inset -1px -1px 0 var(--bevel-dark),
+    inset -2px -2px 0 var(--bevel-shadow);
+}
+
+/* Hover — brighten the thumb face (same UX concession as `iconButtonHover`
+   in window.ts; Win2K classic had no hover, but mouse users expect it). */
+.win2k-slider:hover::-webkit-slider-thumb {
+  background: var(--bevel-hilite);
+}
+.win2k-slider:hover::-moz-range-thumb {
+  background: var(--bevel-hilite);
+}
+
+/* Focus — dotted outline around the slider, same pattern as Win2K buttons. */
+.win2k-slider:focus-visible {
+  outline: 1px dotted var(--bevel-dark);
+  outline-offset: 2px;
+}
+
+/* Pressed (dragging) — invert the thumb bevel for a sunken feel. */
+.win2k-slider:active::-webkit-slider-thumb {
+  box-shadow:
+    inset 1px 1px 0 var(--bevel-dark),
+    inset 2px 2px 0 var(--bevel-shadow),
+    inset -1px -1px 0 var(--bevel-light),
+    inset -2px -2px 0 var(--bevel-hilite);
+}
+.win2k-slider:active::-moz-range-thumb {
+  box-shadow:
+    inset 1px 1px 0 var(--bevel-dark),
+    inset 2px 2px 0 var(--bevel-shadow),
+    inset -1px -1px 0 var(--bevel-light),
+    inset -2px -2px 0 var(--bevel-hilite);
+}

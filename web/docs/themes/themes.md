@@ -15,7 +15,6 @@ web/lib/themes/
     defaultTheme/                        ← Layer 2 — the active preset
       constants.ts                       ← preset palette aliases (private to the preset)
       index.ts                           ← assembler: composes the preset object + exports `Theme`
-      (app)/                             ← mirror of web/app/(app)/ — one page.ts per page with dedicated styles
       components/                        ← mirror of web/components/ — one *.ts per component
         layout/
           topbar.ts                      ← exposed as theme.topbar
@@ -27,6 +26,9 @@ web/lib/themes/
           window.ts                      ← exposed as theme.window
           taskbarButton.ts               ← exposed as theme.taskbarButton
           clock.ts                       ← exposed as theme.clock
+        pages/                           ← mirror of web/components/pages/ — page-level slices
+          objective/
+            strategy.ts                  ← exposed as theme.pages.objective.strategy
 ```
 
 ## Dependency chain (no cycles)
@@ -105,9 +107,21 @@ Mirror of `web/components/`. A file here = a component reachable through `theme.
 
 Each slice exports a single `as const` object whose keys are merged-spread into `style={...}` by the component.
 
-### `(app)/<route>/page.ts` — page-level styles (when needed)
+### `components/pages/<area>/<page>.ts` — page-level styles
 
-Mirror of `web/app/(app)/`. A file is created **only** when a page has style keys not reusable from components or shared scalars. Currently empty — no page has dedicated theme keys yet.
+Mirror of `web/components/pages/`. A file is created when a page grows enough Win2K-specific styling (multiple controls, custom layout) to be worth extracting. Exposed under `theme.pages.<area>.<page>` so the flat chrome keys above stay flat.
+
+| File                                                       | Exposed as                          | Component                                                                          |
+| ---------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `components/pages/objective/strategy.ts`                   | `theme.pages.objective.strategy`    | [`Strategy.tsx`](../../components/pages/objective/Strategy.tsx)                    |
+
+The other 12 pages don't have a slice yet — they're still placeholders. As each gets a real form / dashboard, add a sibling file under `components/pages/<area>/`.
+
+## CSS escape hatch — `web/app/globals.css`
+
+The theme system uses inline styles, which can't reach native pseudo-elements: `::-webkit-slider-thumb`, `::-moz-range-thumb`, `::-webkit-scrollbar*`, `:hover`/`:focus-visible`/`:active` on form controls in some cases. Anything that *requires* a CSS pseudo-element to style lives in [`globals.css`](../../app/globals.css).
+
+Currently this means: the Win2K range slider (`.win2k-slider`) used in `Strategy.tsx`. To avoid hex-literal drift, the palette is mirrored into [`globals.css`](../../app/globals.css) as CSS custom properties on `:root` (`--color-*`, `--bevel-*`, `--surface-*`) and the slider rules reference `var(...)` only. Keep the `:root` block in sync with [`tokens.ts`](../../lib/themes/tokens.ts) and [`constants.ts`](../../lib/themes/presets/defaultTheme/constants.ts); the rest of the codebase reads colors via the JS theme system, never via these vars.
 
 ### `index.ts` — assembler
 
@@ -123,10 +137,14 @@ import { desktopIcon } from "./components/layout/desktopIcon";
 import { window } from "./components/layout/window";
 import { taskbarButton } from "./components/layout/taskbarButton";
 import { clock } from "./components/layout/clock";
+import { strategy as objectiveStrategy } from "./components/pages/objective/strategy";
 
 export const defaultTheme = {
   topbar, bottombar, startButton, startMenu,
   desktop, desktopIcon, window, taskbarButton, clock,
+  pages: {
+    objective: { strategy: objectiveStrategy },
+  },
 } as const;
 export type Theme = typeof defaultTheme;
 ```

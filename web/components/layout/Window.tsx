@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@/lib/themes";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -10,6 +10,7 @@ import {
   toggleMaximize,
 } from "@/store/slices/windowsSlice";
 import { getWindow } from "@/lib/windows/registry";
+import { useButtonState, type ButtonState } from "@/lib/ui/useButtonState";
 
 // Title-bar glyphs — drawn at the same 14×14 grid so visual weight matches.
 function MinimizeGlyph() {
@@ -44,16 +45,6 @@ function CloseGlyph() {
   );
 }
 
-// Tracking hover + focus + pressed for each title-bar button. Local state
-// because inline styles can't express CSS pseudo-classes — same pattern the
-// start button and taskbar buttons use.
-interface ButtonState {
-  hover: boolean;
-  focused: boolean;
-  pressed: boolean;
-}
-const REST: ButtonState = { hover: false, focused: false, pressed: false };
-
 export function Window({ id }: { id: string }) {
   const { theme } = useTheme();
   const dispatch = useAppDispatch();
@@ -62,9 +53,9 @@ export function Window({ id }: { id: string }) {
   const def = getWindow(id);
   const isMaximized = useAppSelector((s) => Boolean(s.windows.maximized[id]));
 
-  const [minState, setMinState] = useState<ButtonState>(REST);
-  const [maxState, setMaxState] = useState<ButtonState>(REST);
-  const [closeState, setCloseState] = useState<ButtonState>(REST);
+  const minimize = useButtonState();
+  const maximize = useButtonState();
+  const close = useButtonState();
 
   if (!def) return null;
   const Content = def.Component;
@@ -107,51 +98,38 @@ export function Window({ id }: { id: string }) {
           <button
             type="button"
             aria-label="Minimize"
-            onMouseEnter={() => setMinState((s) => ({ ...s, hover: true }))}
-            onMouseLeave={() => setMinState((s) => ({ ...s, hover: false, pressed: false }))}
-            onMouseDown={() => setMinState((s) => ({ ...s, pressed: true }))}
-            onMouseUp={() => setMinState((s) => ({ ...s, pressed: false }))}
-            onFocus={() => setMinState((s) => ({ ...s, focused: true }))}
-            onBlur={() => setMinState((s) => ({ ...s, focused: false }))}
+            {...minimize.handlers}
             onClick={handleMinimize}
-            style={buttonStyle(minState)}
+            style={buttonStyle(minimize.state)}
           >
             <MinimizeGlyph />
           </button>
           <button
             type="button"
             aria-label={isMaximized ? "Restore" : "Maximize"}
-            onMouseEnter={() => setMaxState((s) => ({ ...s, hover: true }))}
-            onMouseLeave={() => setMaxState((s) => ({ ...s, hover: false, pressed: false }))}
-            onMouseDown={() => setMaxState((s) => ({ ...s, pressed: true }))}
-            onMouseUp={() => setMaxState((s) => ({ ...s, pressed: false }))}
-            onFocus={() => setMaxState((s) => ({ ...s, focused: true }))}
-            onBlur={() => setMaxState((s) => ({ ...s, focused: false }))}
+            {...maximize.handlers}
             onClick={handleToggleMax}
-            style={buttonStyle(maxState)}
+            style={buttonStyle(maximize.state)}
           >
             {isMaximized ? <RestoreGlyph /> : <MaximizeGlyph />}
           </button>
           <button
             type="button"
             aria-label="Close"
-            onMouseEnter={() => setCloseState((s) => ({ ...s, hover: true }))}
-            onMouseLeave={() => setCloseState((s) => ({ ...s, hover: false, pressed: false }))}
-            onMouseDown={() => setCloseState((s) => ({ ...s, pressed: true }))}
-            onMouseUp={() => setCloseState((s) => ({ ...s, pressed: false }))}
-            onFocus={() => setCloseState((s) => ({ ...s, focused: true }))}
-            onBlur={() => setCloseState((s) => ({ ...s, focused: false }))}
+            {...close.handlers}
             onClick={handleClose}
-            style={buttonStyle(closeState)}
+            style={buttonStyle(close.state)}
           >
             <CloseGlyph />
           </button>
         </span>
       </div>
       <div style={theme.window.body}>
-        <Suspense fallback={<p>Loading…</p>}>
-          <Content />
-        </Suspense>
+        <div style={theme.window.bodyContent}>
+          <Suspense fallback={<p>Loading…</p>}>
+            <Content />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

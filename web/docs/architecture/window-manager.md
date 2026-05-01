@@ -1,90 +1,83 @@
 # Window manager
 
-The app shell is a Win2K-style desktop: each ESG page opens as a movable, resizable, minimizable window over a wallpaper, the bottombar shows one task button per open window, and the URL still works as a deep-link. This page documents how the pieces fit together.
+The app shell is a Win2K-style desktop with a single-foreground window model: one window at a time is rendered, centered over the wallpaper at 80% of the desktop area. Every other "open" id is still tracked — its taskbar button is visible — but it is not in the DOM until it gets brought to the foreground.
 
 ## Pieces
 
 | Layer            | Role                                                                                | Lives in                                                                  |
 | ---------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Redux slice      | Source of truth: which windows are open, geometry, z-order, active id, min/max flags | [`web/store/slices/windowsSlice.ts`](../../store/slices/windowsSlice.ts)  |
+| Redux slice      | Source of truth: which windows are open, which one is active                        | [`web/store/slices/windowsSlice.ts`](../../store/slices/windowsSlice.ts)  |
 | Registry         | Static map of `id → { title, route, area, lazy Component }` + icon path helper     | [`web/lib/windows/registry.ts`](../../lib/windows/registry.ts)            |
 | Mount hook       | Tiny client hook each route's `page.tsx` calls to translate URL → state             | [`web/lib/windows/useOpenWindowOnMount.ts`](../../lib/windows/useOpenWindowOnMount.ts) |
 | Window content   | The actual page UI, lazy-loaded via `next/dynamic`                                  | [`web/components/pages/<area>/<Name>.tsx`](../../components/pages/)       |
-| Window frame     | Title bar (drag) + min/max/close buttons + body + 8 resize handles                  | [`web/components/layout/Window.tsx`](../../components/layout/Window.tsx)  |
+| Window frame     | Title bar (with close button) + body. No drag, no resize, no min/max.               | [`web/components/layout/Window.tsx`](../../components/layout/Window.tsx)  |
 
 ## State shape
 
 ```ts
 interface WindowsState {
-  byId:             Record<string, WindowInstance>;
-  // **Insertion order** — drives the taskbar. Append on open, splice on
-  // close. *Never* mutated on focus, so taskbar buttons stay put as the
-  // user shuffles windows.
-  order:            string[];
-  activeId:         string | null;
-  nextZIndex:       number;     // monotonically increasing — assigned to a window's `zIndex` on focus
-  nextCascadeIndex: number;     // monotonically increasing — drives cascade positioning
-}
-
-interface WindowInstance {
-  id: string;
-  x: number; y: number; width: number; height: number;
-  isMinimized: boolean;
-  isMaximized: boolean;
-  // Saved geometry to restore to on un-maximize. While `isMaximized` is true,
-  // the renderer ignores x/y/width/height and uses the desktop's bounds; we
-  // never overwrite them so the user gets back exactly what they had.
-  restoreBounds: { x; y; width; height } | null;
-  // Painting order. Higher = closer to the user. Updated by `bumpZ` on
-  // every focus change; never decreases.
-  zIndex: number;
+  // Insertion order — drives the taskbar. Append on `openWindow` of a new
+  // id, splice on `closeWindow`. Never mutated by focus changes, so a
+  // taskbar button keeps its slot as the user shuffles between windows.
+  order: string[];
+  // The window currently shown in the centered foreground slot. `null`
+  // means no window is rendered — every id in `order` is still "open" and
+  // has a taskbar button, but the desktop is bare.
+  activeId: string | null;
+  // Sparse map: ids whose user-set state is "fill the desktop" (vs. the
+  // default centered 80%). Per-id (not a single flag) so a window
+  // remembers its own size when the user shuffles between them.
+  maximized: Record<string, true>;
 }
 ```
 
-Two distinct orderings:
-
-- **`order` (insertion)** — append on `openWindow` (new id), splice on `closeWindow`. Never mutated by focus changes. Drives the taskbar's left-to-right layout, so a button keeps its position as the user switches between windows.
-- **`zIndex` (per-window)** — bumped to `state.nextZIndex++` on every focus event (`openWindow` of an existing id, `focusWindow`, `restoreWindow`, `toggleMaximize`). Drives CSS stacking. `topmostNonMinimized()` picks the next active window by scanning `byId` for the highest non-minimized `zIndex`.
-
-Two arrays would have worked too; one array + one per-window field reads cleanly because the field is local to the window it describes.
+There is no other per-window state: no geometry (always centered, either 80% or full), no z-stack (only one window at a time). "Background" windows are exactly the ones in `order` that aren't `activeId` — they cost nothing in the DOM and reappear instantly when the user clicks their taskbar button.
 
 ## Reducer actions
 
-| Action                      | Effect                                                                                       |
-| --------------------------- | -------------------------------------------------------------------------------------------- |
-| `openWindow(id)`            | If new: cascade-position + assign zIndex + push to `order` + activate. If existing: un-minimize, bumpZ. |
-| `closeWindow(id)`           | Remove from `byId` + `order`. If was active, transfer focus to the topmost non-minimized.    |
-| `focusWindow(id)`           | Bump `zIndex`, mark active. **Does not touch `order`** — taskbar position stays put.         |
-| `minimizeWindow(id)`        | Set `isMinimized = true`. If was active, transfer focus to the topmost non-minimized.        |
-| `restoreWindow(id)`         | Set `isMinimized = false`, bumpZ.                                                            |
-| `toggleMaximize(id)`        | Snapshot current bounds → set `isMaximized` (or restore from snapshot). bumpZ.               |
-| `setWindowBounds({id,...})` | Drag + resize commit point. No-op while `isMaximized` (consumer should restore first).       |
-
-Minimized windows stay in `order` (so their taskbar button keeps its slot) and keep their `zIndex` (so on restore they pop back to the position they were at). The desktop skips rendering them; their taskbar button is still visible — clicking it dispatches `restoreWindow`.
+| Action                  | Effect                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `openWindow(id)`        | Append `id` to `order` if new, set `activeId = id`. Idempotent for already-open ids.                    |
+| `closeWindow(id)`       | Remove from `order`, drop any `maximized` entry. If was active, transfer focus to the last entry in `order` (or null). |
+| `focusWindow(id)`       | Set `activeId = id` (no-op if `id` isn't in `order`).                                                   |
+| `deactivateWindow()`    | Set `activeId = null` — every window stays open, no foreground is rendered.                             |
+| `toggleMaximize(id)`    | Flip the `maximized[id]` flag. Doesn't change `activeId` or `order`.                                    |
 
 ## Interactions
 
-### Drag
-The title bar's `onMouseDown` registers document-level `mousemove` / `mouseup` listeners. The `mousemove` handler updates a **local** React state (not Redux) so we don't churn the store at 60fps; the inline style of the window root reads this local state for live preview. On `mouseup` the final position is dispatched as `setWindowBounds` once. Position is clamped so the window stays inside the desktop's content area.
+### Open
+A desktop icon double-click, a Start menu item click, or a deep-link mount all call `openWindow(id)`. The id appends to `order` (if new) and becomes `activeId`. Re-opening an already-open id just sets `activeId`.
 
-Maximized windows ignore drag — clicking their title bar doesn't start one. Double-clicking the title bar toggles maximize.
+### Switch foreground
+Clicking an inactive taskbar button dispatches `focusWindow(id)` and `router.replace(def.route)`. The previously-active window unmounts; its lazy chunk stays cached so reopening is instant.
 
-### Resize
-Eight invisible handles around the frame (4 edges as 4px-wide strips, 4 corners as 8×8 squares). Corners render after edges in DOM order so their cursor wins on overlap. Each handle's mousedown does the same local-state-then-dispatch dance as drag, but the geometry change is computed by `applyResize(dir, dx, dy, init)` — moving the opposite edge to enforce the 240×160 minimum size, then `clampToParent` to keep the box inside the desktop. While resizing, `document.body.style.cursor` is forced to the handle's cursor so it doesn't flicker if the mouse leaves the 4px strip.
+### Hide foreground
+Two paths produce the same result — `activeId = null`, every open id stays on the taskbar, no window renders:
 
-### Minimize / Maximize / Close
-Three icon buttons in the title bar's right cluster, in Win2K order **\[_\] \[□\] \[X\]**. Glyphs are inline SVG (no font dependency). Each tracks a local `pressed` state for the bevel-inversion press effect. Maximize swaps to the "restore" glyph (two overlapping squares) when the window is already maximized.
+- Clicking the active taskbar button dispatches `deactivateWindow()`.
+- Clicking the **minimize** glyph in the title bar dispatches `deactivateWindow()`.
 
-Maximize spans the **desktop area only** — not the topbar — so the app shell stays visible. The window root sets `inset: 0` in its container while maximized, which fills the desktop without measuring it in JS.
+### Maximize / restore
+The **maximize** glyph in the title bar dispatches `toggleMaximize(id)`. When `maximized[id]` is set, the window root applies `theme.window.rootMaximized` (`inset: 0`), filling the desktop edge-to-edge over the wallpaper but **not** the topbar / bottombar — the window is a child of `Desktop`, so its 0-inset stops at the desktop's bounds. The glyph swaps to the "restore" cascade-of-squares; clicking again removes the flag and the window returns to centered 80%.
+
+The flag is per-id: switching foreground to a different window and back preserves whether the user had it maximized.
+
+### Close
+The X button in the title bar dispatches `closeWindow(id)`. If the URL still points at that window's route, `router.replace("/")` follows.
+
+There is no drag, no resize. The window's size is determined by CSS — `inset: 10%` (centered 80%) by default, `inset: 0` when maximized. Browser zoom scales the window proportionally with the desktop because the size is expressed in percentages, not pixels.
 
 ## Routing — URL ↔ state
 
-The flow is **URL → state**, not the other way around. The URL reflects "the most recently launched window from a navigation event"; closing or focusing a different window doesn't always rewrite it.
+The flow is **URL → state**, not the other way around. The URL reflects "the most recently launched window from a navigation event"; closing or hiding a window doesn't always rewrite it.
 
 - **Deep-link** (`/environmental/co2-emissions`): the route's `page.tsx` is a thin Client Component that calls `useOpenWindowOnMount("environmental/co2-emissions")` and returns `null`.
-- **Desktop icon click**: `openWindow(id)` + `router.push(route)`.
+- **Desktop icon double-click**: `openWindow(id)` + `router.push(route)`.
 - **Start menu item click**: same as desktop icon click + close menu.
-- **Taskbar button click**: depends on state — `restoreWindow` if minimized, `minimizeWindow` if active visible (Win2K-style), `focusWindow` otherwise. Always `router.replace(route)`.
+- **Taskbar button click on active**: `deactivateWindow()` (no URL change — the route still maps to the window the user just hid).
+- **Taskbar button click on inactive**: `focusWindow(id)` + `router.replace(route)`.
+- **Minimize button**: `deactivateWindow()` (no URL change).
+- **Maximize / Restore button**: `toggleMaximize(id)` (no URL change).
 - **Close button**: `closeWindow(id)`. If the URL still points at that window's route, also `router.replace("/")`.
 
 ## The registry contract
@@ -98,6 +91,8 @@ The flow is **URL → state**, not the other way around. The URL reflects "the m
 
 The icon for each window is resolved by the `iconPath(def)` helper, which returns `/icons/${id}.svg`. The SVG file lives in `web/public/icons/<area>/<slug>.svg`.
 
+Area-level icons (the four ESG groupings) are resolved by `areaIconPath(area)` and live at `web/public/icons/areas/<area>.svg`. Used by the Start menu's top-level rows so an area is visually distinguished from any of its child windows.
+
 Adding a new window is a 4-step recipe:
 
 1. Add a new entry to `WINDOW_REGISTRY` with a fresh id matching its route.
@@ -109,12 +104,13 @@ No other file needs to change — the desktop icon grid, start menu, and taskbar
 
 ## Why `next/dynamic`?
 
-Without lazy loading, all 13 page components are bundled with the desktop and live in memory whether or not the user has opened any of them. With `next/dynamic`, each `import()` is a separate chunk; the chunk is fetched on the first `openWindow` for that id and the module is unmounted after `closeWindow`. The `Window.tsx` body wraps `<Content />` in `<Suspense>` so the lazy fetch shows a "Loading…" placeholder rather than blocking render.
+Without lazy loading, all 13 page components are bundled with the desktop and live in memory whether or not the user has opened any of them. With `next/dynamic`, each `import()` is a separate chunk; the chunk is fetched on the first `openWindow` for that id. With the single-foreground model, switching between two open windows unmounts the previous content — but the lazy chunk is cached by the bundler, so re-mounting is instantaneous after the first time. The `Window.tsx` body wraps `<Content />` in `<Suspense>` so the lazy fetch shows a "Loading…" placeholder rather than blocking render.
 
 In the App Router, `dynamic()` does **not** server-render by default, which is exactly what we want — the desktop's initial state is empty, so SSR has nothing useful to do for window content.
 
 ## What this design does not do
 
 - **No window state persistence** across reloads — refreshing closes everything except the deep-linked window. Adding `redux-persist` (or a small `localStorage` middleware) is a future option.
-- **No multi-instance per id** — opening "CO₂ Emissions" twice focuses the existing window instead of creating a second one. This is intentional and matches the "one document, one window" model that fits ESG dashboard pages.
+- **No multi-instance per id** — opening "CO₂ Emissions" twice focuses the existing window instead of creating a second one. This matches the "one document, one window" model that fits ESG dashboard pages.
+- **No simultaneous windows** — by design, only one is on screen at a time. The taskbar still shows every open window (each a single click away). If a future page actually needs two-window comparison, the slice can grow back per-window state without changing the registry contract.
 - **No keyboard window navigation** (Alt+Tab, Alt+Space, etc.) — only mouse-driven interactions are wired up. The taskbar buttons are tab-focusable so keyboard-only users can still navigate between open windows; window contents themselves remain fully tab-navigable inside.

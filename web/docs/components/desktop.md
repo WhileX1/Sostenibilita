@@ -13,19 +13,20 @@ Wallpaper, icon grid, and the layer that hosts open windows. Sits between the to
 ┌──────────────────────────────────────────────────────────┐
 │ Topbar                                                   │
 ├──────────────────────────────────────────────────────────┤
-│ ┌──┐ ┌──┐ ┌──┐                ┌────────────────┐         │
-│ │EN│ │HR│ │CD│                │ Window         │         │
-│ └──┘ └──┘ └──┘                ├────────────────┤         │
-│ ┌──┐ ┌──┐ ┌──┐                │                │         │
-│ │CO│ │IN│ │ET│                │                │         │
-│ └──┘ └──┘ └──┘                └────────────────┘         │
-│ …                                                        │
+│ ┌──┐                                              ┌──┐   │
+│ │EN│         ┌───────────────────────┐            │CD│   │
+│ │CO│         │ Window (centered 80%) │            │ET│   │
+│ │WA│         │                       │            │SC│   │
+│ │WS│         │                       │            │RC│   │
+│ │HR│         │                       │            │RT│   │
+│ │IN│         │                       │            │ST│   │
+│ │HS│         └───────────────────────┘            └──┘   │
 ├──────────────────────────────────────────────────────────┤
 │ [Start] │ task buttons …               │ [12:34]         │
 └──────────────────────────────────────────────────────────┘
 ```
 
-The icon grid is column-flow with `gridTemplateRows: repeat(7, 80px)`, so the 13 registered windows land as **7 + 6** across two columns. Adding a 14th window flows automatically; reaching 15 wraps to a third column. No code change needed unless you want a different shape.
+The first half of the registry seeds against the left edge in a single column, the second half against the right edge. With 13 registered windows: **7 left + 6 right**. The middle 80% of the desktop stays clear so an open window doesn't sit on top of any icons. Side, column, and row are stored per-icon in Redux — see "Draggable icons" below.
 
 ## Click semantics
 
@@ -44,11 +45,14 @@ The marquee rectangle is rendered as a `<div style={theme.desktop.marquee, ...in
 
 Each icon is absolutely positioned inside the desktop. Position state lives in the [`desktopIcons`](../../store/slices/desktopIconsSlice.ts) Redux slice. The slice's `initialState` seeds every registered window into a unique grid cell at module load, so the desktop never needs a "missing id" fallback path.
 
-The desktop is a **snap-to-grid** surface (Win2K "Align to Grid" semantics). Grid geometry lives in the slice:
+The desktop is a **snap-to-grid** surface (Win2K "Align to Grid" semantics) with **side-anchored** cells: each icon stores `{ side: "left" | "right", col, row }` instead of a pixel `(x, y)`. Column 0 hugs the chosen edge, columns grow inward. This keeps icons pinned to the screen edges as the desktop resizes — and, more importantly, keeps the left/right edge strips clear of the centered 80% window, so opening a window doesn't hide them behind the frame.
 
-- `ICON_COL_WIDTH` = 100, `ICON_ROW_HEIGHT` = 92, `ICON_PADDING` = 12, `ICONS_PER_COL` = 6.
-- `autoPosition(index)` produces the initial column-flow layout — 13 entries land as 6 + 6 + 1 across three columns.
-- `snapToGrid(x, y)` rounds a dropped pixel position to the nearest cell.
+Grid geometry lives in the slice:
+
+- `ICON_COL_WIDTH` = 100, `ICON_ROW_HEIGHT` = 92, `ICON_PADDING` = 12.
+- `autoPosition(index, total)` splits the registry roughly half-and-half between the two sides, single column on each, top-down by registry order. With 13 entries → 7 left + 6 right.
+- `snapToGrid(x, y, parentWidth)` snaps a dropped pixel position to the nearest cell on whichever side the icon ended up more in (the icon's center decides).
+- `iconPixelOf(pos, parentWidth)` translates a stored cell back into absolute pixels for the renderer (and for the drag-start snapshot).
 
 ### Drag is owned by `Desktop`, not `DesktopIcon`
 
@@ -57,11 +61,11 @@ The Win2K-style "drag the whole selection at once" gesture means a single drag m
 `Desktop`'s `handleIconMouseDown(id, e)`:
 
 1. Decides which ids ride the drag — the whole `selectedIds` set if the clicked icon was already part of a multi-selection, otherwise just the clicked icon (which also becomes the new sole selection).
-2. Snapshots every dragged icon's position into a local `initial` map.
+2. Snapshots every dragged icon's pixel position into a local `initial` map. Stored cells are side-anchored, so the snapshot calls `iconPixelOf(pos, parentRect.width)` to translate back into screen pixels.
 3. Registers document-level `mousemove` / `mouseup` listeners.
 4. The first move past `ICON_DRAG_THRESHOLD` (5px) flips `didDrag = true` and locks `document.body.style.userSelect = "none"` so sweeping over chrome doesn't highlight text.
 5. Each `mousemove` computes a single (dx, dy) shared by every dragged icon and **clamps** it against every dragged icon's bounds — so the most-restrictive icon sets the limit and the group moves rigidly.
-6. `mouseup` dispatches `setIconPosition` for every dragged id (with `init.x + dx, init.y + dy`), restores the user-select lock, and sets `wasDraggedRef` so the trailing `click`/`dblclick` event doesn't also fire selection or open.
+6. `mouseup` dispatches `setIconPosition({ id, x, y, parentWidth })` for every dragged id; the slice's `snapToGrid` re-derives `(side, col, row)` from those pixel coords. Then it restores the user-select lock and sets `wasDraggedRef` so the trailing `click`/`dblclick` event doesn't also fire selection or open.
 
 Render path:
 
@@ -70,10 +74,10 @@ Render path:
 
 ### Resize / zoom reflow
 
-`resolveIconRenderPositions` runs in two passes against the current grid (`cols × rows` derived from `parentSize` and the cell pitch exported by the slice):
+`resolveIconRenderPositions` runs in two passes against the current grid (`maxCols × maxRows` derived from `parentSize` and the cell pitch exported by the slice):
 
 1. **Keep what fits** — every icon whose stored cell is in-bounds claims it, first-come first-served by registry order. The `setIconPosition` reducer prevents stored-cell duplicates so collisions in this pass don't normally happen.
-2. **Reflow overflow** — any icon whose stored cell is out of bounds is placed in the first free cell in column-flow scan order (col 0 rows 0..N, then col 1, …). If the grid is so small that no free cell exists, the icon falls back to the top-left corner — degraded but visible. The user can enlarge the desktop to recover their layout.
+2. **Reflow overflow** — any icon whose stored cell is out of bounds is placed in the first free cell on its preferred side; if that side is full, it spills onto the other side. If both sides are full, the icon falls back to `(side: preferred, col: 0, row: 0)` — degraded but visible. Real workflows shouldn't hit this; the user can enlarge the desktop to recover their layout.
 
 Memoized with `useMemo` so the two-pass algorithm only runs when `iconPositions` or `parentSize` changes — not on every render.
 
@@ -89,11 +93,11 @@ Memoized with `useMemo` so the two-pass algorithm only runs when `iconPositions`
 
 The `setIconPosition` reducer:
 
-1. Snaps the dropped position to the nearest grid cell.
-2. If another icon already occupies that cell, the two **swap** — the existing tenant moves into the dragged icon's previous cell.
+1. Snaps the dropped position to the nearest grid cell — `snapToGrid(x, y, parentWidth)` decides side from the icon's center vs. the desktop midline, then converts the pixel offset into a `(col, row)` anchored to that side.
+2. If another icon already occupies that `(side, col, row)` cell, the two **swap** — the existing tenant moves into the dragged icon's previous cell.
 3. The dragged icon takes the target cell.
 
-This preserves the invariant "at most one icon per cell" without ever rejecting a drop. `resetIconPositions()` is exported from the slice for a future "auto-arrange" affordance; currently nothing calls it.
+This preserves the invariant "at most one icon per cell" without ever rejecting a drop, and makes side-flipping a natural drag (drop on the right half → side becomes "right"). `resetIconPositions()` is exported from the slice for a future "auto-arrange" affordance; currently nothing calls it.
 
 ## Icons
 
@@ -101,21 +105,19 @@ Each window has a matching SVG at `web/public/icons/<id>.svg` — resolved by th
 
 The chrome components (`DesktopIcon`, `StartMenu`, `TaskbarButton`) render `<img src={iconPath(def)} alt="" aria-hidden style={...sizing}>`. The label below is what announces the page; the icon is decorative and aria-hidden.
 
-The `area` field on each registry entry no longer drives a background color — icons are descriptive on their own. `area` is still used by `windowsByArea(area)` to group items in the Start menu's four submenus.
+Each ESG **area** (Environmental, Social, Governance, Objective) has its own SVG at `web/public/icons/areas/<area>.svg` — resolved by `areaIconPath(area)`. Used as the icon next to each top-level row in the Start menu, so an area row is visually distinct from any of its child windows. The `area` field on each registry entry no longer drives a background color — icons are descriptive on their own. `area` is still used by `windowsByArea(area)` to group items in the Start menu's four submenus.
 
 ## Window layer
 
-Open windows are rendered as siblings of the icon grid, ordered by the `order` array from the Redux slice:
+Only the `activeId` window is rendered; every other open id stays in `s.windows.order` (and on the taskbar) but is not in the DOM:
 
 ```tsx
-{order.map((id, idx) => (
-  <Window key={id} ... zIndex={WINDOW_Z_BASE + idx} />
-))}
+{activeId && <Window id={activeId} />}
 ```
 
-Z-order is purely from array position. Focusing a window is a `bringToFront` reducer that moves the id to the end of `order`; React diffs each window's `zIndex` prop and React rerenders nothing else. No DOM reordering, no `Element.prototype.appendChild` shenanigans.
+There's no z-stack to manage — only one window is ever on screen. The frame paints above the marquee thanks to `theme.window.root.zIndex = 10`, and below the bottombar (`100`) and start menu (`200`) so chrome always covers it.
 
-`WINDOW_Z_BASE` is `10`, well below the bottombar (`100`) and start menu (`200`) so chrome always paints on top of windows.
+Switching foreground (taskbar click → `focusWindow`) changes `activeId`; React swaps the DOM child for the new window. The previous window's lazy chunk stays cached in the bundler so re-mounting is instant.
 
 ## Theme keys consumed
 
@@ -138,24 +140,19 @@ Z-order is purely from array position. Focusing a window is a `bringToFront` red
 
 ### `theme.window`
 
-| Key                                            | Applied to                                                                                            |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `root`                                         | the absolute-positioned window frame                                                                  |
-| `titleBar` / `titleBarActive`                  | the gradient bar (drag handle); active swaps the gray gradient for blue                               |
-| `titleBarText`                                 | the title text (truncates with ellipsis)                                                              |
-| `buttonGroup`                                  | right-aligned cluster holding the three icon buttons                                                  |
-| `iconButton` / `iconButtonPressed`             | shared shape for the minimize / maximize / restore / close buttons; pressed inverts the bevel         |
-| `body`                                         | the white "document" inner surface that hosts the lazy-loaded content                                 |
-| `resizeEdgeN/S/E/W` / `resizeCornerNE/NW/SE/SW` | 8 absolute-positioned hit zones around the frame; cursors signal the resize direction                |
+| Key                                | Applied to                                                                                            |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `root`                             | the centered window frame (`inset: 10%` → 80% of the desktop, scales with browser zoom)               |
+| `rootMaximized`                    | merged on `root` while `s.windows.maximized[id]` is set — overrides to `inset: 0` (fills the desktop) |
+| `titleBar` / `titleBarActive`      | the gradient bar; only the active variant is used at runtime since just one window is ever on screen  |
+| `titleBarText`                     | the title text (truncates with ellipsis)                                                              |
+| `buttonGroup`                      | right-aligned cluster holding the minimize / maximize / close buttons                                 |
+| `iconButton` / `iconButtonHover` / `iconButtonFocus` / `iconButtonPressed` | shared shape for the three title-bar buttons; hover brightens the face, focus draws a dotted outline, pressed inverts the bevel |
+| `body`                             | the white "document" inner surface that hosts the lazy-loaded content                                 |
 
-## Drag, resize, min/max
+## Window placement
 
-The window component owns the interaction logic:
-
-- **Drag** is initiated by mousedown on the title bar (not on its child buttons — they `stopPropagation`). A document-level mousemove updates a *local* React state for live preview, and on mouseup the final position is dispatched once via `setWindowBounds`. Position is clamped to the desktop's content area.
-- **Resize** works the same way, started by any of the 8 handles. The geometry transform is `applyResize(dir, dx, dy, init)` — moving the *opposite* edge to enforce the 240×160 minimum size — followed by `clampToParent`. While a resize is in flight, `document.body.style.cursor` is forced to the matching `*-resize` cursor so it doesn't flicker if the mouse leaves the 4px-wide handle strip.
-- **Maximize** spans the desktop area only (not the topbar). The window root sets `inset: 0` while maximized, filling its parent without measuring it in JS. Drag and resize are no-ops while maximized; double-clicking the title bar toggles maximize.
-- **Minimize** flips `isMinimized` in state; the desktop skips rendering minimized windows. Their taskbar buttons stay visible — clicking restores.
+The window has no per-instance geometry. Default: `theme.window.root` sets `position: absolute; inset: 10%`, so the frame is 80% of the desktop and centered. The maximize button toggles `s.windows.maximized[id]`, which merges `theme.window.rootMaximized` (`inset: 0`) over the base — filling the desktop edge-to-edge. Browser zoom scales the frame along with everything else because the size is expressed in percentages, not pixels. There's no drag and no resize — see [Window manager](../architecture/window-manager.md) for the rationale.
 
 ## Hover / focus / pressed tracking
 

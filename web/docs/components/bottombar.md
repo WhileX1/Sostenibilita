@@ -26,10 +26,26 @@ Layout is a single horizontal flex row. The two `theme.bottombar.separator` span
 Together these implement the Win2K Start affordance:
 
 - The button is a `<button data-start-menu-trigger>` with the official Windows 1992-2001 SVG logo (`/Windows_Logo_(1992-2001).svg`) + the word **Start**. While the menu is open, the button stays visually pressed (`pressed = mouseDown || open`) — a Win2K signature.
-- `mousedown` (not `click`) toggles the menu so it appears the instant the button presses, matching the OS behavior.
+- The toggle fires on `click`, not `mousedown`, so the menu opens for both mouse users (after mouseup) and keyboard users (Enter/Space synthesize a click but never a mousedown). The slight loss of "instant" feel is the cost of being keyboard-reachable.
 - The menu is rendered as a sibling of the button (a child of `StartButton`, not portaled). This keeps it inside the bottombar's stacking context, but it positions itself with `bottom: 36px` so it floats above the 36px-tall taskbar.
 
-The menu has two columns: a vertical "Sostenibilità" banner (CSS `writing-mode: vertical-rl` + `transform: rotate(180deg)` for bottom-to-top text) and a list of the four ESG **areas**. Hovering / focusing an area expands a submenu showing that area's windows. The wrapping `<div>` around each area button + its submenu carries the `onMouseEnter` / `onMouseLeave`, so the cursor can travel from parent to submenu without firing a mouse-leave that would close it.
+The menu has two columns: a vertical "Sostenibilità" banner (CSS `writing-mode: vertical-rl` + `transform: rotate(180deg)` for bottom-to-top text) and a list of the four ESG **areas**. Each area row uses its dedicated SVG from `areaIconPath(area)` — see [`web/public/icons/areas/`](../../public/icons/areas/) — so the top-level rows look distinct from any of their child windows. Hovering / focusing an area expands a submenu showing that area's windows. The wrapping `<div>` around each area button + its submenu carries the `onMouseEnter` / `onMouseLeave`, so the cursor can travel from parent to submenu without firing a mouse-leave that would close it.
+
+### Keyboard navigation
+
+The menu is fully usable from the keyboard:
+
+- **Open**: Enter or Space on the focused Start button.
+- **Auto-focus on open**: `useEffect` focuses the first area button (Environmental) so the user lands inside the menu without an extra Tab.
+- **Up / Down**: cycle through area buttons (and submenu items, when focused inside a submenu). Wraps at the ends.
+- **Right** on an area: open its submenu and focus the first item. `requestAnimationFrame` waits for the ref callback to populate `submenuRefs` before focusing.
+- **Left** on a submenu item: return focus to the parent area button. The submenu stays open (collapsing it on Left would surprise the user — they're stepping back, not undoing).
+- **Left** on an area button: dispatch `onEscape` (no further "back" available).
+- **Enter / Space** on a submenu item: launch the window (native button click; no special handler).
+- **Esc**: dispatch `onEscape`. The Start button passes a callback that closes the menu **and** restores focus to the trigger so the user doesn't lose their place.
+- **Click outside**: dispatch `onClose` (no focus restore — the user is engaging another surface, mouse-driven).
+
+Area / submenu buttons keep their `onFocus={() => setOpenArea(area)}` so Tab navigation also works: tabbing onto an area expands its submenu, and the submenu items are next in DOM order.
 
 ### Submenu positioning
 
@@ -45,14 +61,12 @@ Closing is multi-source:
 
 ## TaskbarButton
 
-One per open window, sourced from `s.windows.order` — which is **insertion order** (append on `openWindow` of a new id, splice on `closeWindow`). The slice never mutates `order` on focus changes, so a button stays in the same slot as the user shuffles between windows. Z-stack lives on each window's `zIndex` field, decoupled from the taskbar's layout. See the [window manager](../architecture/window-manager.md) doc for the full split.
+One per open window, sourced from `s.windows.order` — which is **insertion order** (append on `openWindow` of a new id, splice on `closeWindow`). The slice never mutates `order` when `activeId` changes, so a button stays in the same slot as the user switches between windows. The single-foreground design means there's no z-stack to layer with — the taskbar's only job is to track open ids and let the user pick the one to bring up. See the [window manager](../architecture/window-manager.md) doc for the full state shape.
 
-- Active window's button has a **sunken bevel + 1px diagonal hatch** (Win2K used a 50% gray dither). The bevel inversion alone is too subtle on the beige surface, so the hatch is what really sells the active state. Minimized windows are drawn with the raised bevel even when their id is the `activeId`, so the user can tell from the bar whether the window is hidden.
-- Click semantics depend on state (Win2K behavior):
-  - minimized → `restoreWindow(id)`
-  - active visible → `minimizeWindow(id)` (clicking the active task button hides the window)
-  - inactive visible → `focusWindow(id)`
-- All three paths call `router.replace(def.route)` so the URL tracks the foreground window.
+- The active window's button has a **sunken bevel + 1px diagonal hatch** (Win2K used a 50% gray dither). The bevel inversion alone is too subtle on the beige surface, so the hatch is what really sells the active state. When `activeId` is `null` (every window deactivated), no button shows the active style — every open id is "open in the background".
+- Click semantics:
+  - inactive → `focusWindow(id)` + `router.replace(def.route)` (this id becomes the foreground window).
+  - active   → `deactivateWindow()` (clicking the active button hides the foreground; every id stays open and on the taskbar). The URL is left alone.
 - The 16×16 icon is the same SVG used on the desktop and in the start menu — sized via `theme.taskbarButton.icon`, no per-area variants.
 
 ## Clock

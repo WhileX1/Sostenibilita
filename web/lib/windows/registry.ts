@@ -166,3 +166,11 @@ export function findWindowByRoute(route: string): WindowDefinition | undefined {
 export function iconPath(def: WindowDefinition): string {
   return `/icons/${def.id}.svg`;
 }
+
+// Resolves the SVG icon for an area (the four ESG groupings). Files live
+// at `web/public/icons/areas/<area>.svg`. Kept separate from `iconPath` so
+// area-level rows in the Start menu render a distinct symbol from any of
+// their child windows.
+export function areaIconPath(area: WindowArea): string {
+  return `/icons/areas/${area.toLowerCase()}.svg`;
+}

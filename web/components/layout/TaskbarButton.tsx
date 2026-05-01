@@ -3,12 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/lib/themes";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import {
-  minimizeWindow,
-  restoreWindow,
-  focusWindow,
-} from "@/store/slices/windowsSlice";
+import { useAppDispatch } from "@/store/hooks";
+import { focusWindow, deactivateWindow } from "@/store/slices/windowsSlice";
 import { getWindow, iconPath } from "@/lib/windows/registry";
 
 export function TaskbarButton({
@@ -23,25 +19,20 @@ export function TaskbarButton({
   const router = useRouter();
   const [focused, setFocused] = useState(false);
   const def = getWindow(id);
-  const isMinimized = useAppSelector((s) => s.windows.byId[id]?.isMinimized ?? false);
 
   if (!def) return null;
 
-  // Win2K taskbar click semantics:
-  // - minimized window  → restore + focus
-  // - active visible    → minimize (clicking the active task button hides it)
-  // - inactive visible  → focus (bring to front)
+  // Click semantics:
+  // - active   → deactivate (hide the foreground window; this id stays open
+  //              and on the taskbar, just not visible)
+  // - inactive → focus (this id becomes the foreground window)
   const handleClick = () => {
-    if (isMinimized) {
-      dispatch(restoreWindow(id));
-    } else if (isActive) {
-      dispatch(minimizeWindow(id));
+    if (isActive) {
+      dispatch(deactivateWindow());
     } else {
       dispatch(focusWindow(id));
+      router.replace(def.route);
     }
-    // Update URL to match the now-foreground window so reload keeps state.
-    // replace() (not push) — focusing isn't a new history entry.
-    router.replace(def.route);
   };
 
   return (
@@ -53,7 +44,7 @@ export function TaskbarButton({
       title={def.title}
       style={{
         ...theme.taskbarButton.root,
-        ...(isActive && !isMinimized ? theme.taskbarButton.rootActive : null),
+        ...(isActive ? theme.taskbarButton.rootActive : null),
         ...(focused ? theme.taskbarButton.rootFocus : null),
       }}
     >

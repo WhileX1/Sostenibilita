@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTheme } from "@/lib/themes";
 import { StartMenu } from "./StartMenu";
 
 export function StartButton() {
   const { theme } = useTheme();
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [pressed, setPressed] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -14,23 +15,32 @@ export function StartButton() {
   // is open, even after the mouse releases. So `pressed` ORs with `open`.
   const showPressed = open || pressed;
 
-  // Toggle on mousedown (not click) to match Win2K — the menu appears the
-  // instant the button presses, and clicking the same button again while
-  // the menu is open dismisses it.
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Toggle on click — fires for both mouse (after mouseup) and keyboard
+  // (Enter/Space). The previous mousedown-toggle made the menu unreachable
+  // from the keyboard since Enter/Space don't synthesize mousedown events.
+  const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setPressed(true);
     setOpen((v) => !v);
+  };
+
+  // Esc-close from inside the menu returns focus here so a keyboard user
+  // doesn't lose their place. Mouse-driven close (clicking outside) skips
+  // the focus restore — the user is already engaging another surface.
+  const handleEscapeClose = () => {
+    setOpen(false);
+    buttonRef.current?.focus();
   };
 
   return (
     <>
       <button
+        ref={buttonRef}
         type="button"
         data-start-menu-trigger
         aria-haspopup="menu"
         aria-expanded={open}
-        onMouseDown={handleMouseDown}
+        onClick={handleClick}
+        onMouseDown={() => setPressed(true)}
         onMouseUp={() => setPressed(false)}
         onMouseLeave={() => setPressed(false)}
         onFocus={() => setFocused(true)}
@@ -49,7 +59,12 @@ export function StartButton() {
         />
         <span style={theme.startButton.label}>Start</span>
       </button>
-      {open && <StartMenu onClose={() => setOpen(false)} />}
+      {open && (
+        <StartMenu
+          onClose={() => setOpen(false)}
+          onEscape={handleEscapeClose}
+        />
+      )}
     </>
   );
 }

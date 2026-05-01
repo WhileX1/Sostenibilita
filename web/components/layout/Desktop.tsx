@@ -14,19 +14,16 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { openWindow } from "@/store/slices/windowsSlice";
 import {
   setIconPosition,
+  iconPixelOf,
   ICON_COL_WIDTH,
   ICON_ROW_HEIGHT,
   ICON_PADDING,
+  type IconPosition,
+  type IconSide,
 } from "@/store/slices/desktopIconsSlice";
 import { WINDOW_DEFINITIONS } from "@/lib/windows/registry";
 import { DesktopIcon } from "./DesktopIcon";
 import { Window } from "./Window";
-
-// Base z-index added to each window's per-instance zIndex when rendered.
-// Stays well below the bottombar (z=100) and start menu (z=200) so chrome
-// always paints on top, and above the marquee (z=5) so windows hide the
-// rubber-band when one is open over an icon.
-const WINDOW_Z_BASE = 10;
 
 // Approximate icon bounding box for marquee intersection + render clamping.
 // Width is exact (matches `theme.desktopIcon.root.width`); height is the
@@ -68,93 +65,106 @@ function rectsIntersect(
 }
 
 // Compute a render position for every icon given the current desktop size.
+// Stored cells are side-anchored — column 0 hugs the chosen edge, columns
+// grow inward — so icons stay pinned to the left/right strips as the
+// desktop resizes (and stay visible behind a centered 80% window).
+//
 // Two-pass to preserve user-set positions while reflowing overflow:
 //
 //   Pass 1: every icon whose stored cell still fits in the current grid
 //           claims it. First-come-first-served — registry order is the
-//           tiebreaker, but in practice the slice prevents duplicate cells
-//           so collisions in this pass don't happen.
-//   Pass 2: every "overflow" icon (its stored cell is out of bounds, or in
-//           the unlikely case its cell was already claimed) gets placed in
-//           the first free cell in column-flow scan order.
+//           tiebreaker, but the slice prevents duplicate cells so
+//           collisions in this pass don't normally happen.
+//   Pass 2: every "overflow" icon (its stored cell is out of bounds, or
+//           in the unlikely case its cell was already claimed) gets
+//           placed in the first free cell on its preferred side, then
+//           on the other side if that side is full.
 //
-// The output is purely visual — `iconPositions` in Redux is never mutated.
-// When the desktop grows back to its original size, every icon's stored
-// cell becomes valid again and pass 1 places them where they were.
+// `byId` in Redux is never mutated — when the desktop grows back to its
+// original size, every icon's stored cell becomes valid again and pass 1
+// places them where they were.
 function resolveIconRenderPositions(
-  iconPositions: Record<string, { x: number; y: number }>,
+  iconPositions: Record<string, IconPosition>,
   parentWidth: number,
   parentHeight: number,
 ): Record<string, { x: number; y: number }> {
   const result: Record<string, { x: number; y: number }> = {};
 
-  // Before the ResizeObserver has fired, fall back to stored positions
-  // (no clamp, no reflow) — initial render needs *some* layout.
+  // Before the ResizeObserver has fired, fall back to a parent-less pixel
+  // map (assume there is enough horizontal space). Every render after the
+  // first will have real measurements.
   if (parentWidth <= 0 || parentHeight <= 0) {
     for (const def of WINDOW_DEFINITIONS) {
       const pos = iconPositions[def.id];
-      if (pos) result[def.id] = pos;
+      if (pos) result[def.id] = iconPixelOf(pos, parentWidth);
     }
     return result;
   }
 
-  // Available space minus padding on both sides, divided by cell pitch.
-  // Floors to whole cells — partial cells at the right/bottom edge aren't
-  // usable.
-  const cols = Math.max(
+  // How many cells fit, in each axis. Floors to whole cells — partial
+  // cells at the right/bottom edge aren't usable.
+  const maxCols = Math.max(
     1,
     Math.floor((parentWidth - 2 * ICON_PADDING) / ICON_COL_WIDTH),
   );
-  const rows = Math.max(
+  const maxRows = Math.max(
     1,
     Math.floor((parentHeight - 2 * ICON_PADDING) / ICON_ROW_HEIGHT),
   );
+  // Cells claimed in this layout pass. Keyed `<side>:<col>:<row>`.
   const claimed = new Set<string>();
-  const overflowIds: string[] = [];
+  const overflow: { id: string; preferredSide: IconSide }[] = [];
 
   // Pass 1: keep stored positions where they still fit.
   for (const def of WINDOW_DEFINITIONS) {
     const pos = iconPositions[def.id];
     if (!pos) continue;
-    const col = Math.round((pos.x - ICON_PADDING) / ICON_COL_WIDTH);
-    const row = Math.round((pos.y - ICON_PADDING) / ICON_ROW_HEIGHT);
-    const fits = col >= 0 && col < cols && row >= 0 && row < rows;
+    const fits =
+      pos.col >= 0 &&
+      pos.col < maxCols &&
+      pos.row >= 0 &&
+      pos.row < maxRows;
     if (fits) {
-      const key = `${col},${row}`;
+      const key = `${pos.side}:${pos.col}:${pos.row}`;
       if (!claimed.has(key)) {
         claimed.add(key);
-        result[def.id] = {
-          x: ICON_PADDING + col * ICON_COL_WIDTH,
-          y: ICON_PADDING + row * ICON_ROW_HEIGHT,
-        };
+        result[def.id] = iconPixelOf(pos, parentWidth);
         continue;
       }
     }
-    overflowIds.push(def.id);
+    overflow.push({ id: def.id, preferredSide: pos.side });
   }
 
-  // Pass 2: reflow overflow icons into the first free cell.
-  for (const id of overflowIds) {
+  // Pass 2: reflow overflow icons into the first free cell, preferring
+  // the side they were stored on. If that side is full, spill onto the
+  // other side instead of the top-left corner.
+  for (const { id, preferredSide } of overflow) {
+    const sides: IconSide[] =
+      preferredSide === "left" ? ["left", "right"] : ["right", "left"];
     let placed = false;
-    outer: for (let c = 0; c < cols; c++) {
-      for (let r = 0; r < rows; r++) {
-        const key = `${c},${r}`;
-        if (!claimed.has(key)) {
-          claimed.add(key);
-          result[id] = {
-            x: ICON_PADDING + c * ICON_COL_WIDTH,
-            y: ICON_PADDING + r * ICON_ROW_HEIGHT,
-          };
-          placed = true;
-          break outer;
+    outer: for (const side of sides) {
+      for (let c = 0; c < maxCols; c++) {
+        for (let r = 0; r < maxRows; r++) {
+          const key = `${side}:${c}:${r}`;
+          if (!claimed.has(key)) {
+            claimed.add(key);
+            result[id] = iconPixelOf(
+              { side, col: c, row: r },
+              parentWidth,
+            );
+            placed = true;
+            break outer;
+          }
         }
       }
     }
-    // Grid full — degraded fallback: stack at the top-left corner. Real
-    // workflows shouldn't hit this; the user can enlarge the desktop to
-    // recover their layout.
+    // No free cell on either side — degraded fallback. Real workflows
+    // shouldn't hit this; the user can enlarge the desktop to recover.
     if (!placed) {
-      result[id] = { x: ICON_PADDING, y: ICON_PADDING };
+      result[id] = iconPixelOf(
+        { side: preferredSide, col: 0, row: 0 },
+        parentWidth,
+      );
     }
   }
 
@@ -176,8 +186,6 @@ export function Desktop({ children }: { children?: ReactNode }) {
   const { theme } = useTheme();
   const dispatch = useAppDispatch();
   const router = useRouter();
-  const order = useAppSelector((s) => s.windows.order);
-  const byId = useAppSelector((s) => s.windows.byId);
   const activeId = useAppSelector((s) => s.windows.activeId);
   const iconPositions = useAppSelector((s) => s.desktopIcons.byId);
 
@@ -216,6 +224,18 @@ export function Desktop({ children }: { children?: ReactNode }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Resolved render positions for non-dragged icons. Recomputed only when
+  // the inputs change so the two-pass algorithm doesn't run on every render.
+  const resolvedPositions = useMemo(
+    () =>
+      resolveIconRenderPositions(
+        iconPositions,
+        parentSize.width,
+        parentSize.height,
+      ),
+    [iconPositions, parentSize.width, parentSize.height],
+  );
 
   // Click on an icon. With Ctrl/Cmd held, the click is additive. Without,
   // it replaces. Suppressed when a drag actually moved.
@@ -267,19 +287,24 @@ export function Desktop({ children }: { children?: ReactNode }) {
       setSelectedIds(new Set([id]));
     }
 
-    // Snapshot every dragged icon's current position. The drag delta is
-    // applied to these snapshots on each mousemove; on mouseup we dispatch
-    // each icon's `initial + final delta` to the slice.
+    // Snapshot every dragged icon's current pixel position. Stored cells
+    // are side-anchored, so the snapshot needs the desktop's measured
+    // width to translate back into screen pixels.
     const initial: Record<string, { x: number; y: number }> = {};
     for (const dragId of idsToDrag) {
       const pos = iconPositions[dragId];
-      if (pos) initial[dragId] = { x: pos.x, y: pos.y };
+      if (pos) initial[dragId] = iconPixelOf(pos, parentRect.width);
     }
 
     const startX = e.clientX;
     const startY = e.clientY;
     let didDrag = false;
     let releaseUserSelect: (() => void) | null = null;
+    // Track the latest drag delta in a closure so onUp can read it
+    // directly. Reading via setState's updater callback would mean doing
+    // side effects (dispatch) inside the updater, which React 19's dev
+    // mode flags as setState-in-render — updaters must be pure.
+    let lastDelta = { dx: 0, dy: 0 };
 
     const onMove = (ev: MouseEvent) => {
       const dxRaw = ev.clientX - startX;
@@ -310,6 +335,7 @@ export function Desktop({ children }: { children?: ReactNode }) {
           dy = parentRect.height - ICON_BBOX_H - init.y;
         }
       }
+      lastDelta = { dx, dy };
       setDragSession({ ids: idsToDrag, initial, dx, dy });
     };
     const onUp = () => {
@@ -318,24 +344,21 @@ export function Desktop({ children }: { children?: ReactNode }) {
       if (releaseUserSelect) releaseUserSelect();
       if (didDrag) {
         wasDraggedRef.current = true;
-        setDragSession((current) => {
-          if (current) {
-            for (const dragId of current.ids) {
-              const init = current.initial[dragId];
-              if (init) {
-                dispatch(
-                  setIconPosition({
-                    id: dragId,
-                    x: init.x + current.dx,
-                    y: init.y + current.dy,
-                  }),
-                );
-              }
-            }
+        for (const dragId of idsToDrag) {
+          const init = initial[dragId];
+          if (init) {
+            dispatch(
+              setIconPosition({
+                id: dragId,
+                x: init.x + lastDelta.dx,
+                y: init.y + lastDelta.dy,
+                parentWidth: parentRect.width,
+              }),
+            );
           }
-          return null;
-        });
+        }
       }
+      setDragSession(null);
     };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
@@ -355,6 +378,10 @@ export function Desktop({ children }: { children?: ReactNode }) {
     const startY = e.clientY - rect.top;
     let dragged = false;
     let releaseUserSelect: (() => void) | null = null;
+    // Track the latest marquee rect in a closure so onUp can read it
+    // directly without going through setMarquee's updater callback —
+    // updaters must be pure (no setSelectedIds inside).
+    let lastRect: MarqueeRect | null = null;
 
     const onMove = (ev: MouseEvent) => {
       const x = ev.clientX - rect.left;
@@ -367,48 +394,48 @@ export function Desktop({ children }: { children?: ReactNode }) {
         releaseUserSelect = lockBodyUserSelect();
       }
       if (dragged) {
-        setMarquee({ x1: startX, y1: startY, x2: x, y2: y });
+        const next = { x1: startX, y1: startY, x2: x, y2: y };
+        lastRect = next;
+        setMarquee(next);
       }
     };
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
       if (releaseUserSelect) releaseUserSelect();
-      if (dragged) {
-        // Commit selection from the final rectangle.
-        setMarquee((current) => {
-          if (current) {
-            const left = Math.min(current.x1, current.x2);
-            const top = Math.min(current.y1, current.y2);
-            const w = Math.abs(current.x2 - current.x1);
-            const h = Math.abs(current.y2 - current.y1);
-            const next = new Set<string>();
-            for (const def of WINDOW_DEFINITIONS) {
-              const pos = iconPositions[def.id];
-              if (!pos) continue;
-              if (
-                rectsIntersect(
-                  pos.x,
-                  pos.y,
-                  ICON_BBOX_W,
-                  ICON_BBOX_H,
-                  left,
-                  top,
-                  w,
-                  h,
-                )
-              ) {
-                next.add(def.id);
-              }
-            }
-            setSelectedIds(next);
+      if (dragged && lastRect) {
+        // Commit selection from the final rectangle. Marquee intersection
+        // uses the resolved render positions, not the raw stored cells —
+        // what the user sees and what they can sweep over has to match.
+        const left = Math.min(lastRect.x1, lastRect.x2);
+        const top = Math.min(lastRect.y1, lastRect.y2);
+        const w = Math.abs(lastRect.x2 - lastRect.x1);
+        const h = Math.abs(lastRect.y2 - lastRect.y1);
+        const next = new Set<string>();
+        for (const def of WINDOW_DEFINITIONS) {
+          const render = resolvedPositions[def.id];
+          if (!render) continue;
+          if (
+            rectsIntersect(
+              render.x,
+              render.y,
+              ICON_BBOX_W,
+              ICON_BBOX_H,
+              left,
+              top,
+              w,
+              h,
+            )
+          ) {
+            next.add(def.id);
           }
-          return null;
-        });
-      } else {
+        }
+        setSelectedIds(next);
+      } else if (!dragged) {
         // Click without drag — deselect everything.
         setSelectedIds(new Set());
       }
+      setMarquee(null);
     };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
@@ -427,18 +454,6 @@ export function Desktop({ children }: { children?: ReactNode }) {
     };
   }
 
-  // Resolved render positions for non-dragged icons. Recomputed only when
-  // the inputs change so the two-pass algorithm doesn't run on every render.
-  const resolvedPositions = useMemo(
-    () =>
-      resolveIconRenderPositions(
-        iconPositions,
-        parentSize.width,
-        parentSize.height,
-      ),
-    [iconPositions, parentSize.width, parentSize.height],
-  );
-
   return (
     <div ref={rootRef} style={theme.desktop.root} onMouseDown={handleDesktopMouseDown}>
       {WINDOW_DEFINITIONS.map((def) => {
@@ -453,12 +468,12 @@ export function Desktop({ children }: { children?: ReactNode }) {
         const inDrag = dragSession?.ids.includes(def.id) ?? false;
         if (inDrag && dragSession) {
           const init = dragSession.initial[def.id];
-          renderX = init ? init.x + dragSession.dx : pos.x;
-          renderY = init ? init.y + dragSession.dy : pos.y;
+          renderX = init ? init.x + dragSession.dx : ICON_PADDING;
+          renderY = init ? init.y + dragSession.dy : ICON_PADDING;
         } else {
-          const resolved = resolvedPositions[def.id] ?? pos;
-          renderX = resolved.x;
-          renderY = resolved.y;
+          const resolved = resolvedPositions[def.id];
+          renderX = resolved?.x ?? ICON_PADDING;
+          renderY = resolved?.y ?? ICON_PADDING;
         }
         return (
           <DesktopIcon
@@ -476,28 +491,11 @@ export function Desktop({ children }: { children?: ReactNode }) {
 
       {marqueeStyle && <div aria-hidden style={marqueeStyle} />}
 
-      {/* Open windows. Z-stack is read from each instance's `zIndex`
-          (bumped on focus by the windows slice) and offset by WINDOW_Z_BASE
-          so windows always paint above the marquee. Order in the array no
-          longer affects stacking — that frees `order` to be the stable
-          insertion order the taskbar relies on. */}
-      {order.map((id) => {
-        const inst = byId[id];
-        if (!inst || inst.isMinimized) return null;
-        return (
-          <Window
-            key={id}
-            id={id}
-            x={inst.x}
-            y={inst.y}
-            width={inst.width}
-            height={inst.height}
-            isActive={id === activeId}
-            isMaximized={inst.isMaximized}
-            zIndex={WINDOW_Z_BASE + inst.zIndex}
-          />
-        );
-      })}
+      {/* Foreground window. Only `activeId` renders — every other open id
+          stays in `s.windows.order` (and on the taskbar) but is not in the
+          DOM. No z-stacking layer: the active window paints above the
+          marquee thanks to its own `theme.window.root.zIndex`. */}
+      {activeId && <Window id={activeId} />}
 
       {/* Children = the active route's page.tsx, which is reduced to a
           side-effect that dispatches openWindow on mount and renders null.

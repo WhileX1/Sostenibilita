@@ -7,40 +7,79 @@ import { WINDOW_DEFINITIONS } from "@/lib/windows/registry";
 export const ICON_COL_WIDTH = 100;
 export const ICON_ROW_HEIGHT = 92;
 export const ICON_PADDING = 12;
-const ICONS_PER_COL = 6;
+
+export type IconSide = "left" | "right";
+
+// Stored position. Side-anchored — column 0 is the column closest to the
+// chosen edge, column 1 is one cell inward, etc. This keeps icons pinned
+// to the edges as the desktop resizes (and keeps them from being hidden
+// behind a centered 80% window).
+export interface IconPosition {
+  side: IconSide;
+  col: number;
+  row: number;
+}
 
 interface DesktopIconsState {
-  byId: Record<string, { x: number; y: number }>;
+  byId: Record<string, IconPosition>;
 }
 
-// Default position for the i-th icon — column-flow, ICONS_PER_COL rows
-// per column. The 13 entries land as 6 + 6 + 1 across three columns.
-function autoPosition(index: number): { x: number; y: number } {
-  const col = Math.floor(index / ICONS_PER_COL);
-  const row = index % ICONS_PER_COL;
+// Default seed: split icons roughly half-and-half between the left and
+// right edges, single column on each side, top-down by registry order.
+function autoPosition(index: number, total: number): IconPosition {
+  const halfPoint = Math.ceil(total / 2);
+  const isLeft = index < halfPoint;
   return {
-    x: ICON_PADDING + col * ICON_COL_WIDTH,
-    y: ICON_PADDING + row * ICON_ROW_HEIGHT,
+    side: isLeft ? "left" : "right",
+    col: 0,
+    row: isLeft ? index : index - halfPoint,
   };
 }
 
-// Round the dropped pixel position to the nearest grid cell. Negative
-// columns/rows are clamped at 0 (icons can't end up off the top-left).
-function snapToGrid(x: number, y: number): { x: number; y: number } {
-  const col = Math.max(0, Math.round((x - ICON_PADDING) / ICON_COL_WIDTH));
+// Render the stored side-anchored cell as absolute pixels inside a parent
+// of the given width. Exported so the Desktop component can compute the
+// drag-start snapshot in the same coordinate system the renderer uses.
+export function iconPixelOf(
+  pos: IconPosition,
+  parentWidth: number,
+): { x: number; y: number } {
+  const x =
+    pos.side === "left"
+      ? ICON_PADDING + pos.col * ICON_COL_WIDTH
+      : parentWidth - ICON_PADDING - ICON_COL_WIDTH - pos.col * ICON_COL_WIDTH;
+  const y = ICON_PADDING + pos.row * ICON_ROW_HEIGHT;
+  return { x, y };
+}
+
+// Round a dropped pixel position to the nearest grid cell on whichever
+// side is closer. The icon's center is what decides side (so a drop that
+// straddles the midline goes to whichever half the icon is *more* in).
+// Negative cols/rows are clamped at 0 (icons can't end up off-screen).
+function snapToGrid(
+  x: number,
+  y: number,
+  parentWidth: number,
+): IconPosition {
+  const center = x + ICON_COL_WIDTH / 2;
+  const isLeft = center < parentWidth / 2;
+  const col = isLeft
+    ? Math.max(0, Math.round((x - ICON_PADDING) / ICON_COL_WIDTH))
+    : Math.max(
+        0,
+        Math.round(
+          (parentWidth - ICON_PADDING - ICON_COL_WIDTH - x) / ICON_COL_WIDTH,
+        ),
+      );
   const row = Math.max(0, Math.round((y - ICON_PADDING) / ICON_ROW_HEIGHT));
-  return {
-    x: ICON_PADDING + col * ICON_COL_WIDTH,
-    y: ICON_PADDING + row * ICON_ROW_HEIGHT,
-  };
+  return { side: isLeft ? "left" : "right", col, row };
 }
 
-// Initial state seeds every registered window into a unique grid cell.
-// Because the seed runs at module load, every id has a position before any
-// user interaction — the desktop never needs a "missing id" fallback path.
 const initialState: DesktopIconsState = {
   byId: Object.fromEntries(
-    WINDOW_DEFINITIONS.map((def, i) => [def.id, autoPosition(i)]),
+    WINDOW_DEFINITIONS.map((def, i) => [
+      def.id,
+      autoPosition(i, WINDOW_DEFINITIONS.length),
+    ]),
   ),
 };
 
@@ -49,25 +88,33 @@ const slice = createSlice({
   initialState,
   reducers: {
     // Drop a dragged icon. The raw cursor position is snapped to the nearest
-    // grid cell; if that cell is already occupied by another icon, the two
-    // swap places. This preserves the invariant "at most one icon per cell"
-    // without ever rejecting a drop.
+    // grid cell on whichever side is closer; if that cell is already
+    // occupied, the two icons swap places. `parentWidth` is supplied by the
+    // caller (the slice doesn't know the desktop's measured width on its
+    // own), and is required to map a right-side drop back into a stable
+    // (col, row) anchored to the right edge.
     setIconPosition: (
       state,
-      action: PayloadAction<{ id: string; x: number; y: number }>,
+      action: PayloadAction<{
+        id: string;
+        x: number;
+        y: number;
+        parentWidth: number;
+      }>,
     ) => {
-      const { id, x, y } = action.payload;
-      const target = snapToGrid(x, y);
+      const { id, x, y, parentWidth } = action.payload;
+      const target = snapToGrid(x, y, parentWidth);
       const previous = state.byId[id];
-      // Find any other icon already at the target cell.
-      const occupierId = Object.keys(state.byId).find(
-        (otherId) =>
-          otherId !== id &&
-          state.byId[otherId].x === target.x &&
-          state.byId[otherId].y === target.y,
-      );
+      const occupierId = Object.keys(state.byId).find((otherId) => {
+        if (otherId === id) return false;
+        const p = state.byId[otherId];
+        return (
+          p.side === target.side &&
+          p.col === target.col &&
+          p.row === target.row
+        );
+      });
       if (occupierId && previous) {
-        // Swap: the existing tenant takes the dragged icon's old cell.
         state.byId[occupierId] = previous;
       }
       state.byId[id] = target;
@@ -77,7 +124,7 @@ const slice = createSlice({
     // "auto arrange" affordance; nothing calls it yet.
     resetIconPositions: (state) => {
       WINDOW_DEFINITIONS.forEach((def, i) => {
-        state.byId[def.id] = autoPosition(i);
+        state.byId[def.id] = autoPosition(i, WINDOW_DEFINITIONS.length);
       });
     },
   },

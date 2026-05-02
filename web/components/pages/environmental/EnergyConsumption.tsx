@@ -1,3 +1,12 @@
+"use client";
+
+import MetricEditor from "@/components/metricEditor/MetricEditor";
+
 export default function EnergyConsumption() {
-  return <p>Energy consumption metrics will appear here.</p>;
+  return (
+    <MetricEditor
+      metricId="environmental/energy-consumption"
+      title="Energy Consumption"
+    />
+  );
 }

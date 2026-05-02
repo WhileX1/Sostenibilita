@@ -48,3 +48,21 @@ export const TEXT_ON_START_MENU_BANNER = COLORS.white;
 
 // Typography — Tahoma 8pt was the canonical Win2K UI font
 export const FONT_SANS = `Tahoma, "MS Sans Serif", ${FONTS.sans}, sans-serif`;
+
+// Syntax-highlighting palette aliases — consumed by the formula editor
+// and by the inputs table's name/type cells (so each name/type reads in
+// the same colour wherever it appears). Each kind gets its own alias so
+// a future preset can re-skin them without touching components.
+export const SYNTAX_OPERATOR = COLORS.syntaxOperator;
+export const SYNTAX_BUILTIN  = COLORS.syntaxOperator;
+// Boolean literals (TRUE / FALSE) share their colour with the boolean
+// type label — same rule as numbers (green literal + green "number"
+// type cell) and strings (orange literal + orange "string" type cell).
+export const SYNTAX_LITERAL  = COLORS.syntaxBoolean;
+export const SYNTAX_INPUT    = COLORS.syntaxInput;
+export const SYNTAX_COMPUTED = COLORS.syntaxComputed;
+export const SYNTAX_SCORE    = COLORS.syntaxScore;
+export const SYNTAX_NUMBER   = COLORS.syntaxNumber;
+export const SYNTAX_STRING   = COLORS.syntaxString;
+export const SYNTAX_BOOLEAN  = COLORS.syntaxBoolean;
+export const SYNTAX_PUNCT    = COLORS.gray500;

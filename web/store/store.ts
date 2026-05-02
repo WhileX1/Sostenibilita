@@ -7,6 +7,7 @@ import counterReducer from "./slices/counterSlice";
 import windowsReducer from "./slices/windowsSlice";
 import desktopIconsReducer from "./slices/desktopIconsSlice";
 import esgReducer from "./slices/esgSlice";
+import metricsReducer from "./slices/metricsSlice";
 import {
   HYDRATE,
   savePersisted,
@@ -18,6 +19,7 @@ const rootReducer = combineReducers({
   windows: windowsReducer,
   desktopIcons: desktopIconsReducer,
   esg: esgReducer,
+  metrics: metricsReducer,
 });
 
 type RawState = ReturnType<typeof rootReducer>;
@@ -38,8 +40,9 @@ type RawState = ReturnType<typeof rootReducer>;
 //     persisted.
 //   - maximized: union; current keys override persisted on conflict.
 //
-// `desktopIcons` and `esg` get a clean replace — nothing dispatches into
-// them before hydrate, so there is no concurrent state to preserve.
+// `desktopIcons`, `esg`, and `metrics` get a clean replace — nothing
+// dispatches into them before hydrate, so there is no concurrent state to
+// preserve.
 function appReducer(state: RawState | undefined, action: Action): RawState {
   if (action.type === HYDRATE) {
     const base = state ?? rootReducer(undefined, action);
@@ -67,6 +70,7 @@ function appReducer(state: RawState | undefined, action: Action): RawState {
       },
       desktopIcons: payload.desktopIcons,
       esg: payload.esg,
+      metrics: payload.metrics,
     };
   }
   return rootReducer(state, action);
@@ -91,6 +95,7 @@ if (typeof window !== "undefined") {
         windows: s.windows,
         desktopIcons: s.desktopIcons,
         esg: s.esg,
+        metrics: s.metrics,
       });
       saveTimer = null;
     }, 300);

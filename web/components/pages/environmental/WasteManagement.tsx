@@ -1,3 +1,12 @@
+"use client";
+
+import MetricEditor from "@/components/metricEditor/MetricEditor";
+
 export default function WasteManagement() {
-  return <p>Waste management metrics will appear here.</p>;
+  return (
+    <MetricEditor
+      metricId="environmental/waste-management"
+      title="Waste Management"
+    />
+  );
 }

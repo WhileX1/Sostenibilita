@@ -1,3 +1,12 @@
+"use client";
+
+import MetricEditor from "@/components/metricEditor/MetricEditor";
+
 export default function EthicsAndCompliance() {
-  return <p>Ethics and compliance data will appear here.</p>;
+  return (
+    <MetricEditor
+      metricId="governance/ethics-and-compliance"
+      title="Ethics and Compliance"
+    />
+  );
 }

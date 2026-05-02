@@ -15,13 +15,20 @@ export interface WindowDefinition {
   route: string;
   area: WindowArea;
   // Marks an entry as a measurable ESG metric that contributes to the
-  // overall score. The 10 E/S/G windows are flagged; the 3 Objective
+  // overall score. The 15 E/S/G windows are flagged; the 3 Objective
   // windows (Reporting CSRD, Rating ESG, Strategy) are *outputs* /
   // configuration of the system itself and intentionally unflagged.
   // `web/lib/scoring/config.ts` filters by this flag instead of by area,
   // so a future Objective entry could be opted into scoring without
   // reshuffling the area grouping.
   scored?: boolean;
+  // ESRS topical anchor for scored metrics. Read by the Reporting CSRD
+  // window to tag each section with its standards reference, and to
+  // derive the "Topics not assessed" disclosure from any metric the
+  // user has flagged `isMaterial: false` in the metric editor. Optional
+  // — non-scored windows (Strategy / Rating ESG / Reporting CSRD) and
+  // any future scored metric without a clear ESRS mapping can omit it.
+  esrs?: { code: string; topic: string };
   // Lazy-loaded content. `next/dynamic` defers fetching the chunk until the
   // window actually mounts, so unopened pages cost nothing on initial load.
   Component: ComponentType;
@@ -36,6 +43,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/environmental/energy-consumption",
     area: "Environmental",
     scored: true,
+    esrs: { code: "ESRS E1", topic: "Climate change — energy consumption" },
     Component: dynamic(
       () => import("@/components/pages/environmental/EnergyConsumption"),
     ),
@@ -46,8 +54,20 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/environmental/co2-emissions",
     area: "Environmental",
     scored: true,
+    esrs: { code: "ESRS E1", topic: "Climate change — GHG emissions" },
     Component: dynamic(
       () => import("@/components/pages/environmental/Co2Emissions"),
+    ),
+  },
+  "environmental/pollution": {
+    id: "environmental/pollution",
+    title: "Pollution",
+    route: "/environmental/pollution",
+    area: "Environmental",
+    scored: true,
+    esrs: { code: "ESRS E2", topic: "Pollution of air, water and soil" },
+    Component: dynamic(
+      () => import("@/components/pages/environmental/Pollution"),
     ),
   },
   "environmental/water-usage": {
@@ -56,8 +76,20 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/environmental/water-usage",
     area: "Environmental",
     scored: true,
+    esrs: { code: "ESRS E3", topic: "Water and marine resources" },
     Component: dynamic(
       () => import("@/components/pages/environmental/WaterUsage"),
+    ),
+  },
+  "environmental/biodiversity": {
+    id: "environmental/biodiversity",
+    title: "Biodiversity",
+    route: "/environmental/biodiversity",
+    area: "Environmental",
+    scored: true,
+    esrs: { code: "ESRS E4", topic: "Biodiversity and ecosystems" },
+    Component: dynamic(
+      () => import("@/components/pages/environmental/Biodiversity"),
     ),
   },
   "environmental/waste-management": {
@@ -66,6 +98,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/environmental/waste-management",
     area: "Environmental",
     scored: true,
+    esrs: { code: "ESRS E5", topic: "Resource use and circular economy" },
     Component: dynamic(
       () => import("@/components/pages/environmental/WasteManagement"),
     ),
@@ -76,6 +109,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/social/human-resources",
     area: "Social",
     scored: true,
+    esrs: { code: "ESRS S1", topic: "Own workforce — employment & training" },
     Component: dynamic(
       () => import("@/components/pages/social/HumanResources"),
     ),
@@ -86,6 +120,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/social/inclusivity",
     area: "Social",
     scored: true,
+    esrs: { code: "ESRS S1", topic: "Own workforce — diversity & inclusion" },
     Component: dynamic(
       () => import("@/components/pages/social/Inclusivity"),
     ),
@@ -96,8 +131,45 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/social/health-and-safety",
     area: "Social",
     scored: true,
+    esrs: {
+      code: "ESRS S1",
+      topic: "Own workforce — occupational health & safety",
+    },
     Component: dynamic(
       () => import("@/components/pages/social/HealthAndSafety"),
+    ),
+  },
+  "social/value-chain-workers": {
+    id: "social/value-chain-workers",
+    title: "Value Chain Workers",
+    route: "/social/value-chain-workers",
+    area: "Social",
+    scored: true,
+    esrs: { code: "ESRS S2", topic: "Workers in the value chain" },
+    Component: dynamic(
+      () => import("@/components/pages/social/ValueChainWorkers"),
+    ),
+  },
+  "social/affected-communities": {
+    id: "social/affected-communities",
+    title: "Affected Communities",
+    route: "/social/affected-communities",
+    area: "Social",
+    scored: true,
+    esrs: { code: "ESRS S3", topic: "Affected communities" },
+    Component: dynamic(
+      () => import("@/components/pages/social/AffectedCommunities"),
+    ),
+  },
+  "social/consumers-end-users": {
+    id: "social/consumers-end-users",
+    title: "Consumers and End-Users",
+    route: "/social/consumers-end-users",
+    area: "Social",
+    scored: true,
+    esrs: { code: "ESRS S4", topic: "Consumers and end-users" },
+    Component: dynamic(
+      () => import("@/components/pages/social/ConsumersEndUsers"),
     ),
   },
   "governance/cda": {
@@ -106,6 +178,7 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/governance/cda",
     area: "Governance",
     scored: true,
+    esrs: { code: "ESRS 2 GOV-1", topic: "Governance — board composition" },
     Component: dynamic(() => import("@/components/pages/governance/Cda")),
   },
   "governance/ethics-and-compliance": {
@@ -114,6 +187,10 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/governance/ethics-and-compliance",
     area: "Governance",
     scored: true,
+    esrs: {
+      code: "ESRS G1",
+      topic: "Business conduct — ethics & anti-corruption",
+    },
     Component: dynamic(
       () => import("@/components/pages/governance/EthicsAndCompliance"),
     ),
@@ -124,6 +201,10 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     route: "/governance/supply-chain",
     area: "Governance",
     scored: true,
+    esrs: {
+      code: "ESRS G1-2",
+      topic: "Business conduct — supplier relationships",
+    },
     Component: dynamic(
       () => import("@/components/pages/governance/SupplyChain"),
     ),

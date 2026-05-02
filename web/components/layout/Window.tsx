@@ -29,10 +29,16 @@ function MaximizeGlyph() {
   );
 }
 function RestoreGlyph() {
+  // The two overlapping rectangles are filled with the button face
+  // colour (Win2K beige) — not pure white — so the front rect
+  // properly *occludes* the back rect's overlap region while staying
+  // visually inside the title-bar's grey-beige palette. Reads from the
+  // `--surface-primary` CSS var in `globals.css` so the SVG follows
+  // the same theme token the JS-side button background uses.
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-      <rect x="2" y="4" width="7" height="7" fill="#fff" stroke="#000" strokeWidth="1.2" />
-      <rect x="4" y="2" width="7" height="7" fill="#fff" stroke="#000" strokeWidth="1.2" />
+      <rect x="2" y="4" width="7" height="7" fill="var(--surface-primary)" stroke="#000" strokeWidth="1.2" />
+      <rect x="4" y="2" width="7" height="7" fill="var(--surface-primary)" stroke="#000" strokeWidth="1.2" />
     </svg>
   );
 }

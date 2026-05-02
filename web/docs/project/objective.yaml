@@ -2,12 +2,17 @@ sostenibility:
   environmental:
     - energy consumption
     - CO2 emissions
+    - pollution
     - water usage
+    - biodiversity
     - waste management
   social:
     - human resources
     - inclusivity
     - health and safety
+    - value chain workers
+    - affected communities
+    - consumers and end-users
   governance:
     - CDA
     - ethics and compliance
@@ -17,9 +22,3 @@ objective:
   - reporting CSRD
   - rating ESG
   - strategy
-
-Stavo pensado, poi in futuro le formule non saranno hardcoded ma, 
-vorrei permettere all'utente di scrivere a mano (stile programmazione),
-magari ogni voce potrà essere aggiunta dall'utente,
-e poi scriverà la formula a mano,
-idelamente con una specie di autocomplete che gli suggerisce le variabili basandosi sulle lettere che sta scrivendo.

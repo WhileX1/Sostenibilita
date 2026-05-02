@@ -1,3 +1,12 @@
+"use client";
+
+import MetricEditor from "@/components/metricEditor/MetricEditor";
+
 export default function SupplyChain() {
-  return <p>Supply chain data will appear here.</p>;
+  return (
+    <MetricEditor
+      metricId="governance/supply-chain"
+      title="Supply Chain"
+    />
+  );
 }

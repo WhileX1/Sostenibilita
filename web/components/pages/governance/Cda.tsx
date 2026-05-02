@@ -1,3 +1,12 @@
+"use client";
+
+import MetricEditor from "@/components/metricEditor/MetricEditor";
+
 export default function Cda() {
-  return <p>Board of directors data will appear here.</p>;
+  return (
+    <MetricEditor
+      metricId="governance/cda"
+      title="CDA"
+    />
+  );
 }

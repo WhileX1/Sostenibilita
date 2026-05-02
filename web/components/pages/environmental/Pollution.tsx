@@ -2,11 +2,11 @@
 
 import MetricEditor from "@/components/metricEditor/MetricEditor";
 
-export default function Inclusivity() {
+export default function Pollution() {
   return (
     <MetricEditor
-      metricId="social/inclusivity"
-      title="Inclusivity"
+      metricId="environmental/pollution"
+      title="Pollution"
     />
   );
 }

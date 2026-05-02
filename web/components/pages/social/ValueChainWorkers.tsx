@@ -2,11 +2,11 @@
 
 import MetricEditor from "@/components/metricEditor/MetricEditor";
 
-export default function Inclusivity() {
+export default function ValueChainWorkers() {
   return (
     <MetricEditor
-      metricId="social/inclusivity"
-      title="Inclusivity"
+      metricId="social/value-chain-workers"
+      title="Value Chain Workers"
     />
   );
 }

@@ -13,11 +13,22 @@ export default function Strategy() {
   const { theme } = useTheme();
   const styles = theme.pages.objective.strategy;
   const weights = useAppSelector((s) => s.esg.weights);
+  const metricsById = useAppSelector((s) => s.metrics.byId);
   const dispatch = useAppDispatch();
   const reset = useButtonState();
 
-  const totalWeight = Object.values(weights).reduce((sum, w) => sum + w, 0);
-  const maxTotal = SCORED_METRICS.length * MAX_WEIGHT;
+  // Materiality denominator: only the *material* metrics' weights
+  // contribute to the share-of-total. Non-material rows are still
+  // shown (the user might want to flip them back on), but their
+  // slider is disabled and they don't dilute the share computation.
+  const totalWeight = SCORED_METRICS.reduce((sum, m) => {
+    if (metricsById[m.id]?.isMaterial === false) return sum;
+    return sum + (weights[m.id] ?? 0);
+  }, 0);
+  const materialCount = SCORED_METRICS.filter(
+    (m) => metricsById[m.id]?.isMaterial !== false,
+  ).length;
+  const maxTotal = materialCount * MAX_WEIGHT;
 
   return (
     <div style={styles.page}>
@@ -28,7 +39,9 @@ export default function Strategy() {
           All weights start at the midpoint, so every metric counts equally;
           move a slider up to mark a metric as more material for your
           organisation, or down to mark it as less material. Shares are
-          normalised to total 100%.
+          normalised to total 100%. Topics flagged <em>not material</em> in
+          their own editor are shown greyed out — they don&apos;t
+          contribute to the share until you re-enable them.
         </p>
       </header>
 
@@ -36,11 +49,26 @@ export default function Strategy() {
         <fieldset key={area} style={styles.fieldset}>
           <legend style={styles.legend}>{area}</legend>
           {SCORED_METRICS.filter((m) => m.area === area).map((m) => {
+            const isMaterial = metricsById[m.id]?.isMaterial !== false;
             const w = weights[m.id] ?? MAX_WEIGHT;
-            const share = totalWeight === 0 ? 0 : (w / totalWeight) * 100;
+            const share =
+              !isMaterial || totalWeight === 0
+                ? 0
+                : (w / totalWeight) * 100;
             return (
-              <div key={m.id} style={styles.row}>
-                <span style={styles.rowLabel}>{m.title}</span>
+              <div
+                key={m.id}
+                style={isMaterial ? styles.row : styles.rowDisabled}
+              >
+                <span style={styles.rowLabel}>
+                  {m.title}
+                  {!isMaterial && (
+                    <span style={styles.notMaterialTag}>
+                      {" "}
+                      — not material
+                    </span>
+                  )}
+                </span>
                 <input
                   type="range"
                   className="win2k-slider"
@@ -48,6 +76,7 @@ export default function Strategy() {
                   max={MAX_WEIGHT}
                   step={1}
                   value={w}
+                  disabled={!isMaterial}
                   onChange={(e) =>
                     dispatch(
                       setWeight({
@@ -61,7 +90,9 @@ export default function Strategy() {
                 <span style={styles.weight}>
                   {w} / {MAX_WEIGHT}
                 </span>
-                <span style={styles.share}>{share.toFixed(1)}%</span>
+                <span style={styles.share}>
+                  {isMaterial ? `${share.toFixed(1)}%` : "—"}
+                </span>
               </div>
             );
           })}

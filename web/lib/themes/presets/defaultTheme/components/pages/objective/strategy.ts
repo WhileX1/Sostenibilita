@@ -111,10 +111,30 @@ export const strategy = {
     padding: "3px 0",
   } as CSSProperties,
 
+  // Same geometry, but the whole row is rendered at half opacity so
+  // the eye treats it as "secondary information" — not gone, just
+  // suppressed. Pairs with `disabled` on the inner slider.
+  rowDisabled: {
+    display: "grid",
+    gridTemplateColumns: "minmax(140px, 1fr) 2fr 56px 64px",
+    alignItems: "center",
+    gap: "12px",
+    padding: "3px 0",
+    opacity: 0.5,
+  } as CSSProperties,
+
   rowLabel: {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  } as CSSProperties,
+
+  // "— not material" suffix appended to the metric title for
+  // disabled rows. Italic + smaller so it reads as a status note
+  // rather than as part of the title itself.
+  notMaterialTag: {
+    fontStyle: "italic",
+    fontSize: "11px",
   } as CSSProperties,
 
   weight: {

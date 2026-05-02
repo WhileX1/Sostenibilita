@@ -1,3 +1,12 @@
+"use client";
+
+import MetricEditor from "@/components/metricEditor/MetricEditor";
+
 export default function HealthAndSafety() {
-  return <p>Health and safety metrics will appear here.</p>;
+  return (
+    <MetricEditor
+      metricId="social/health-and-safety"
+      title="Health and Safety"
+    />
+  );
 }

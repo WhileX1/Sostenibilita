@@ -1,3 +1,12 @@
+"use client";
+
+import MetricEditor from "@/components/metricEditor/MetricEditor";
+
 export default function Co2Emissions() {
-  return <p>CO₂ emissions metrics will appear here.</p>;
+  return (
+    <MetricEditor
+      metricId="environmental/co2-emissions"
+      title="CO₂ Emissions"
+    />
+  );
 }

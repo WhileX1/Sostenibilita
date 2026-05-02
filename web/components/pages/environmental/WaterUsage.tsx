@@ -1,3 +1,12 @@
+"use client";
+
+import MetricEditor from "@/components/metricEditor/MetricEditor";
+
 export default function WaterUsage() {
-  return <p>Water usage metrics will appear here.</p>;
+  return (
+    <MetricEditor
+      metricId="environmental/water-usage"
+      title="Water Usage"
+    />
+  );
 }

@@ -5,7 +5,11 @@ import { WINDOW_DEFINITIONS } from "@/lib/windows/registry";
 // pitch when computing render-time auto-flow on resize. Don't duplicate
 // these literals downstream.
 export const ICON_COL_WIDTH = 100;
-export const ICON_ROW_HEIGHT = 92;
+// Pitch = button height (88, see `desktopIcon.ts` root) + ~12px breathing
+// gap. Keeping the gap consistent across rows is what makes the column
+// look uniform; before the button got a locked height, 1-line labels
+// produced a ~25px visible gap and 2-line labels a ~9px one.
+export const ICON_ROW_HEIGHT = 100;
 export const ICON_PADDING = 12;
 
 export type IconSide = "left" | "right";
@@ -56,7 +60,12 @@ export function iconPixelOf(
 // Round a dropped pixel position to the nearest grid cell on whichever
 // side is closer. The icon's center is what decides side (so a drop that
 // straddles the midline goes to whichever half the icon is *more* in).
-// Negative cols/rows are clamped at 0 (icons can't end up off-screen).
+// Negative cols/rows are clamped at 0 (icons can't end up off-screen);
+// `col` is also capped at `maxColsPerSide − 1` so a drop near the middle
+// of a narrow desktop can't land in a column that would visually
+// overlap with the opposite side. (Same overlap math as the resolver in
+// `Desktop.tsx`: each side gets at most `floor((W − 2·pad) / (2·W_cell))`
+// columns.)
 function snapToGrid(
   x: number,
   y: number,
@@ -64,14 +73,16 @@ function snapToGrid(
 ): IconPosition {
   const center = x + ICON_COL_WIDTH / 2;
   const isLeft = center < parentWidth / 2;
-  const col = isLeft
-    ? Math.max(0, Math.round((x - ICON_PADDING) / ICON_COL_WIDTH))
-    : Math.max(
-        0,
-        Math.round(
-          (parentWidth - ICON_PADDING - ICON_COL_WIDTH - x) / ICON_COL_WIDTH,
-        ),
+  const maxColsPerSide = Math.max(
+    1,
+    Math.floor((parentWidth - 2 * ICON_PADDING) / (2 * ICON_COL_WIDTH)),
+  );
+  const rawCol = isLeft
+    ? Math.round((x - ICON_PADDING) / ICON_COL_WIDTH)
+    : Math.round(
+        (parentWidth - ICON_PADDING - ICON_COL_WIDTH - x) / ICON_COL_WIDTH,
       );
+  const col = Math.max(0, Math.min(maxColsPerSide - 1, rawCol));
   const row = Math.max(0, Math.round((y - ICON_PADDING) / ICON_ROW_HEIGHT));
   return { side: isLeft ? "left" : "right", col, row };
 }

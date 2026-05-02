@@ -13,6 +13,17 @@ export const desktopIcon = {
     border: "none",
     padding: "5px 3px",
     width: "100px",
+    // Locked height so 1-line and 2-line labels render the same total box.
+    // Without this, a 1-line title ("CDA", "Strategy") sits in a ~67px
+    // button while a 2-line title ("Consumers and End-Users", "Ethics and
+    // Compliance") fills ~83px — at fixed `ICON_ROW_HEIGHT` pitch, that
+    // means the *visible* gap between icons changes wherever short and
+    // long titles meet. 88px = padding(10) + icon(40) + margin(5) + label
+    // (32 ≈ 2 lines). `box-sizing: border-box` is explicit so the height
+    // includes the padding deterministically.
+    height: "88px",
+    boxSizing: "border-box",
+    overflow: "hidden",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",

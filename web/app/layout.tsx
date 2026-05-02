@@ -40,6 +40,21 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} h-full antialiased`}
     >
+      <head>
+        {/* High-priority preload for the desktop wallpaper. Without it
+            the browser only starts the fetch when CSS is evaluated,
+            which on a cold load lands after first paint and produces a
+            white flash. `as="image"` is required for the preload to
+            register at the right cache bucket. The `body` rule in
+            `globals.css` consumes the preloaded asset; this link just
+            moves the fetch earlier in the network waterfall. */}
+        <link
+          rel="preload"
+          href="/windows_og_background.jpg"
+          as="image"
+          fetchPriority="high"
+        />
+      </head>
       <body className="h-full">
         <Providers>
           <ThemeProvider>

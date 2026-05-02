@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+/* Wallpaper at the body layer — the browser starts the image fetch as
+   soon as CSS is parsed, well before React hydrates and renders the
+   `Desktop` component (which has its own copy of the same `background-
+   image`). Without this, the body falls back to the browser's default
+   white between first paint and the desktop's first paint, producing a
+   visible white flash on cold loads. The fallback `background-color`
+   covers the brief gap before the JPG itself arrives — picked to match
+   the dominant sky tone of the wallpaper (Bliss / XP) so the transition
+   to the loaded image is barely perceptible. */
+body {
+  background-color: #4a7ba0;
+  background-image: url('/windows_og_background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 /* Theme palette as CSS custom properties. Mirrors `web/lib/themes/tokens.ts`
    — keep in sync if a value changes there. The properties are exposed for
    rules that can't use inline styles (native pseudo-elements like

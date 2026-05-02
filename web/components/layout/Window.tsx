@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@/lib/themes";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -62,6 +62,20 @@ export function Window({ id }: { id: string }) {
   const minimize = useButtonState();
   const maximize = useButtonState();
   const close = useButtonState();
+
+  // Esc minimises the foreground window — standard role="dialog" dismiss
+  // gesture. Skipped while a [role="menu"] is mounted (e.g. the open
+  // StartMenu) so the menu's own Esc-to-close handler wins instead of
+  // both firing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (document.querySelector('[role="menu"]')) return;
+      dispatch(deactivateWindow());
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [dispatch]);
 
   if (!def) return null;
   const Content = def.Component;

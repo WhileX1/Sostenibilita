@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/lib/themes";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { useHydrated } from "@/store/Providers";
 import { openWindow } from "@/store/slices/windowsSlice";
 import {
   setIconPosition,
@@ -25,11 +26,13 @@ import { WINDOW_DEFINITIONS } from "@/lib/windows/registry";
 import { DesktopIcon } from "./DesktopIcon";
 import { Window } from "./Window";
 
-// Approximate icon bounding box for marquee intersection + render clamping.
-// Width is exact (matches `theme.desktopIcon.root.width`); height is the
-// rendered total (icon 40 + label up to ~30 + padding 10).
+// Icon bounding box for marquee intersection + render clamping. Both
+// match the locked dimensions of `desktopIcon.root` (width 100, height 88
+// — see comment there for the height breakdown). Drag clamp uses these
+// to keep an icon fully on-screen; marquee uses them to decide which
+// icons the rubber-band rectangle has swept.
 const ICON_BBOX_W = 100;
-const ICON_BBOX_H = 80;
+const ICON_BBOX_H = 88;
 
 // Movement threshold before a desktop mousedown promotes from a click to a
 // marquee drag, and before an icon mousedown promotes from a click to a
@@ -119,11 +122,17 @@ function resolveIconRenderCells(
     return result;
   }
 
-  // How many cells fit, in each axis. Floors to whole cells — partial
-  // cells at the right/bottom edge aren't usable.
-  const maxCols = Math.max(
+  // How many cells fit per side without left- and right-anchored columns
+  // overlapping in the middle. A naive `floor((W − 2·pad) / cellW)` gives
+  // total cols across the whole desktop — but each "side" is anchored to
+  // its own edge, so left col c spans pixels [pad + c·W, pad + (c+1)·W]
+  // and right col c spans [W_total − pad − (c+1)·W, W_total − pad − c·W].
+  // They stop overlapping when 2·(c+1)·W + 2·pad ≤ W_total. We cap each
+  // side at that limit so a narrow desktop / aggressive zoom can never
+  // place left and right overflow icons on top of each other.
+  const maxColsPerSide = Math.max(
     1,
-    Math.floor((parentWidth - 2 * ICON_PADDING) / ICON_COL_WIDTH),
+    Math.floor((parentWidth - 2 * ICON_PADDING) / (2 * ICON_COL_WIDTH)),
   );
   const maxRows = Math.max(
     1,
@@ -139,7 +148,7 @@ function resolveIconRenderCells(
     if (!pos) continue;
     const fits =
       pos.col >= 0 &&
-      pos.col < maxCols &&
+      pos.col < maxColsPerSide &&
       pos.row >= 0 &&
       pos.row < maxRows;
     if (fits) {
@@ -161,7 +170,7 @@ function resolveIconRenderCells(
       preferredSide === "left" ? ["left", "right"] : ["right", "left"];
     let placed = false;
     outer: for (const side of sides) {
-      for (let c = 0; c < maxCols; c++) {
+      for (let c = 0; c < maxColsPerSide; c++) {
         for (let r = 0; r < maxRows; r++) {
           const key = `${side}:${c}:${r}`;
           if (!claimed.has(key)) {
@@ -200,6 +209,11 @@ export function Desktop({ children }: { children?: ReactNode }) {
   const router = useRouter();
   const activeId = useAppSelector((s) => s.windows.activeId);
   const iconPositions = useAppSelector((s) => s.desktopIcons.byId);
+  // Suppress the icon grid until the post-mount HYDRATE has merged the
+  // persisted layout. Without this, icons render at default `autoPosition`
+  // slots for one frame and then snap to the user's saved positions —
+  // visible as a flash on every reload.
+  const hydrated = useHydrated();
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
@@ -315,13 +329,16 @@ export function Desktop({ children }: { children?: ReactNode }) {
       setSelectedIds(new Set([id]));
     }
 
-    // Snapshot every dragged icon's current pixel position. Stored cells
-    // are side-anchored, so the snapshot needs the desktop's measured
-    // width to translate back into screen pixels.
+    // Snapshot every dragged icon's current pixel position. Reads the
+    // *resolved* cell (post-reflow), not the stored one — when the
+    // desktop has shrunk under zoom and pushed an icon to a fallback
+    // slot, the user clicks its rendered position, so the drag must
+    // start from there. Mixing the two coordinate systems would make
+    // the icon snap to its pre-reflow pixel on mousedown.
     const initial: Record<string, { x: number; y: number }> = {};
     for (const dragId of idsToDrag) {
-      const pos = iconPositions[dragId];
-      if (pos) initial[dragId] = iconPixelOf(pos, parentRect.width);
+      const cell = resolvedCells[dragId];
+      if (cell) initial[dragId] = iconPixelOf(cell, parentRect.width);
     }
 
     const startX = e.clientX;
@@ -486,6 +503,12 @@ export function Desktop({ children }: { children?: ReactNode }) {
 
   return (
     <div ref={rootRef} style={theme.desktop.root} onMouseDown={handleDesktopMouseDown}>
+      {/* Static wrapper — desktop root is `position: relative`, so absolute
+          children inside this static div still anchor against the desktop,
+          not the wrapper. `visibility` cascades while hydration is pending,
+          hiding the default-positioned icons before they snap to persisted
+          slots. */}
+      <div style={{ visibility: hydrated ? "visible" : "hidden" }}>
       {WINDOW_DEFINITIONS.map((def) => {
         const cell = resolvedCells[def.id];
         if (!cell) return null;
@@ -517,6 +540,7 @@ export function Desktop({ children }: { children?: ReactNode }) {
           />
         );
       })}
+      </div>
 
       {marqueeStyle && <div aria-hidden style={marqueeStyle} />}
 

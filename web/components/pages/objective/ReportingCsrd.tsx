@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type CSSProperties } from "react";
+import { useMemo } from "react";
 import { useTheme } from "@/lib/themes";
 import { useAppSelector } from "@/store/hooks";
 import { SCORED_METRICS } from "@/lib/scoring/config";

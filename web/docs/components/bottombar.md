@@ -75,7 +75,7 @@ One per open window, sourced from `s.windows.order` — which is **insertion ord
 
 The task list is a flex row with `overflow: hidden` and the buttons are `flex-shrink: 1`. Each button's natural width sits between `minWidth: 44px` (icon-only fallback) and `maxWidth: 220px` (comfortable label width). As more windows open, flex distributes the deficit across the row and labels ellipsize until they collapse to 0; below that, each button is just an icon. The full title is still reachable through the `title` attribute on the button (native tooltip).
 
-We deliberately don't make the task list horizontally scrollable. With a 13-window registry cap, even the worst case is `13 × 44 = 572px` — fits in any practical viewport — and a horizontal scrollbar at screen bottom would clash with the Win2K aesthetic (which never had one; classic Windows just shrunk the buttons). If the registry ever grew beyond what fits at icon width, that's the moment to revisit, not before.
+We deliberately don't make the task list horizontally scrollable. With an 18-window registry cap, even the worst case is `18 × 44 = 792px` — fits in any practical viewport — and a horizontal scrollbar at screen bottom would clash with the Win2K aesthetic (which never had one; classic Windows just shrunk the buttons). If the registry ever grew beyond what fits at icon width, that's the moment to revisit, not before.
 
 ## Clock
 

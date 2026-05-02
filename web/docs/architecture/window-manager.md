@@ -52,10 +52,11 @@ A desktop icon double-click, a Start menu item click, or a deep-link mount all c
 Clicking an inactive taskbar button dispatches `focusWindow(id)` and `router.replace(def.route)`. The previously-active window unmounts; its lazy chunk stays cached so reopening is instant.
 
 ### Hide foreground
-Two paths produce the same result — `activeId = null`, every open id stays on the taskbar, no window renders:
+Three paths produce the same result — `activeId = null`, every open id stays on the taskbar, no window renders:
 
 - Clicking the active taskbar button dispatches `deactivateWindow()`.
 - Clicking the **minimize** glyph in the title bar dispatches `deactivateWindow()`.
+- Pressing **Esc** while a foreground window is mounted (standard `role="dialog"` dismiss). The handler bails when a `[role="menu"]` is currently in the DOM (e.g. the Start menu) so the menu's own Esc-to-close handler wins instead of both firing on the same keystroke.
 
 ### Maximize / restore
 The **maximize** glyph in the title bar dispatches `toggleMaximize(id)`. When `maximized[id]` is set, the window root applies `theme.window.rootMaximized` (`inset: 0`), filling the desktop edge-to-edge over the wallpaper but **not** the bottombar — the window is a child of `Desktop`, so its 0-inset stops at the desktop's bounds. The glyph swaps to the "restore" cascade-of-squares; clicking again removes the flag and the window returns to centered 80%.
@@ -87,7 +88,7 @@ The flow is **URL → state**, not the other way around. The URL reflects "the m
 - `title` — text for the title bar / taskbar button / start-menu label.
 - `route` — Next.js path. Used by `<Link>` / `router.push` for deep-link sync.
 - `area` — `"Environmental" | "Social" | "Governance" | "Objective"`. Used to group items in the Start menu submenus.
-- `scored?` — when `true`, this window is a measurable ESG metric and feeds the score (see [`scoring.md`](scoring.md)). The 10 E/S/G windows have it; the 3 Objective windows don't.
+- `scored?` — when `true`, this window is a measurable ESG metric and feeds the score (see [`scoring.md`](scoring.md)). The 15 E/S/G windows have it; the 3 Objective windows don't.
 - `Component` — the lazy-loaded page UI, declared as `dynamic(() => import("@/components/pages/..."))`.
 
 The icon for each window is resolved by the `iconPath(def)` helper, which returns `/icons/${id}.svg`. The SVG file lives in `web/public/icons/<area>/<slug>.svg`.
@@ -105,7 +106,7 @@ No other file needs to change — the desktop icon grid, start menu, and taskbar
 
 ## Why `next/dynamic`?
 
-Without lazy loading, all 13 page components are bundled with the desktop and live in memory whether or not the user has opened any of them. With `next/dynamic`, each `import()` is a separate chunk; the chunk is fetched on the first `openWindow` for that id. With the single-foreground model, switching between two open windows unmounts the previous content — but the lazy chunk is cached by the bundler, so re-mounting is instantaneous after the first time. The `Window.tsx` body wraps `<Content />` in `<Suspense>` so the lazy fetch shows a "Loading…" placeholder rather than blocking render.
+Without lazy loading, all 18 page components are bundled with the desktop and live in memory whether or not the user has opened any of them. With `next/dynamic`, each `import()` is a separate chunk; the chunk is fetched on the first `openWindow` for that id. With the single-foreground model, switching between two open windows unmounts the previous content — but the lazy chunk is cached by the bundler, so re-mounting is instantaneous after the first time. The `Window.tsx` body wraps `<Content />` in `<Suspense>` so the lazy fetch shows a "Loading…" placeholder rather than blocking render.
 
 In the App Router, `dynamic()` does **not** server-render by default, which is exactly what we want — the desktop's initial state is empty, so SSR has nothing useful to do for window content.
 
@@ -114,4 +115,4 @@ In the App Router, `dynamic()` does **not** server-render by default, which is e
 - **Window state persists across reloads** via a small `localStorage` layer in [`web/store/persist/persist.ts`](../../store/persist/persist.ts). The store dispatches a `HYDRATE` action from `Providers.tsx` after mount; the top-level reducer in [`store.ts`](../../store/store.ts) **merges** the persisted `windows` slice with whatever `useOpenWindowOnMount` may have already dispatched for a deep-linked route (a deep-link wins for `activeId`, but persisted ids are kept in `order`). `desktopIcons` and `esg` are replaced cleanly.
 - **No multi-instance per id** — opening "CO₂ Emissions" twice focuses the existing window instead of creating a second one. This matches the "one document, one window" model that fits ESG dashboard pages.
 - **No simultaneous windows** — by design, only one is on screen at a time. The taskbar still shows every open window (each a single click away). If a future page actually needs two-window comparison, the slice can grow back per-window state without changing the registry contract.
-- **No keyboard window navigation** (Alt+Tab, Alt+Space, etc.) — only mouse-driven interactions are wired up. The taskbar buttons are tab-focusable so keyboard-only users can still navigate between open windows; window contents themselves remain fully tab-navigable inside.
+- **Limited keyboard window navigation** — Esc minimises the foreground window (see "Hide foreground" above). Alt+Tab / Alt+Space / arrow-key window switching are not wired up. The taskbar buttons are tab-focusable so keyboard-only users can still navigate between open windows; window contents themselves remain fully tab-navigable inside.

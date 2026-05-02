@@ -24,7 +24,7 @@ Wallpaper, icon grid, and the layer that hosts open windows. Fills the area abov
 └──────────────────────────────────────────────────────────┘
 ```
 
-The first half of the registry seeds against the left edge in a single column, the second half against the right edge. With 13 registered windows: **7 left + 6 right**. The middle 80% of the desktop stays clear so an open window doesn't sit on top of any icons. Side, column, and row are stored per-icon in Redux — see "Draggable icons" below.
+The first half of the registry seeds against the left edge in a single column, the second half against the right edge. With 18 registered windows: **9 left + 9 right**. The middle 80% of the desktop stays clear so an open window doesn't sit on top of any icons. Side, column, and row are stored per-icon in Redux — see "Draggable icons" below.
 
 ## Click semantics
 
@@ -47,10 +47,10 @@ The desktop is a **snap-to-grid** surface (Win2K "Align to Grid" semantics) with
 
 Grid geometry lives in the slice:
 
-- `ICON_COL_WIDTH` = 100, `ICON_ROW_HEIGHT` = 92, `ICON_PADDING` = 12.
-- `autoPosition(index, total)` splits the registry roughly half-and-half between the two sides, single column on each, top-down by registry order. With 13 entries → 7 left + 6 right.
-- `snapToGrid(x, y, parentWidth)` snaps a dropped pixel position to the nearest cell on whichever side the icon ended up more in (the icon's center decides).
-- `iconPixelOf(pos, parentWidth)` translates a stored cell back into absolute pixels — used by marquee intersection and the drag-start snapshot. The renderer itself does **not** call `iconPixelOf`; instead it uses `iconStyleOf(pos)` (defined in `Desktop.tsx`) which returns edge-anchored CSS (`{ left, top }` or `{ right, top }`), so right-side icons paint at the correct position without depending on `parentWidth`.
+- `ICON_COL_WIDTH` = 100, `ICON_ROW_HEIGHT` = 100, `ICON_PADDING` = 12. The cell pitch (100) = icon button height (88) + ~12px gap. Button height itself is locked in `desktopIcon.root` (`height: 88px`, `box-sizing: border-box`) so 1-line and 2-line label titles take the same vertical space — without this lock, "CDA" rendered ~67px tall while "Consumers and End-Users" rendered ~83px and the visible gap between rows depended on which titles met where.
+- `autoPosition(index, total)` splits the registry roughly half-and-half between the two sides, single column on each, top-down by registry order. With 18 entries → 9 left + 9 right.
+- `snapToGrid(x, y, parentWidth)` snaps a dropped pixel position to the nearest cell on whichever side the icon ended up more in (the icon's center decides). Caps `col` at `maxColsPerSide − 1` (see "Resize / zoom reflow" below) so a drop near the middle of a narrow desktop can't land in a column that would visually overlap with the opposite side.
+- `iconPixelOf(pos, parentWidth)` translates a stored cell back into absolute pixels — used by marquee intersection and the drag-start snapshot, both reading the *resolved* cell (post-reflow), not the stored cell, so a zoom-induced reflow doesn't make the icon snap to a different position the moment the user starts dragging it. The renderer itself does **not** call `iconPixelOf`; instead it uses `iconStyleOf(pos)` (defined in `Desktop.tsx`) which returns edge-anchored CSS (`{ left, top }` or `{ right, top }`), so right-side icons paint at the correct position without depending on `parentWidth`.
 
 ### Drag is owned by `Desktop`, not `DesktopIcon`
 
@@ -72,10 +72,10 @@ Render path:
 
 ### Resize / zoom reflow
 
-`resolveIconRenderCells` runs in two passes against the current grid (`maxCols × maxRows` derived from `parentSize` and the cell pitch exported by the slice):
+`resolveIconRenderCells` runs in two passes against the current grid (`maxColsPerSide × maxRows` derived from `parentSize` and the cell pitch exported by the slice). `maxColsPerSide = floor((W − 2·ICON_PADDING) / (2·ICON_COL_WIDTH))` — the cap is **per side**, not the desktop's total column count. Each side is anchored to its own edge: left col `c` spans pixels `[pad + c·W, pad + (c+1)·W]` and right col `c` spans `[W_total − pad − (c+1)·W, W_total − pad − c·W]`. Bounding `c` at `maxColsPerSide − 1` guarantees the two ranges never cross, so under aggressive zoom or a narrow window the reflow can't place left-overflow and right-overflow icons on top of each other in the middle of the desktop.
 
-1. **Keep what fits** — every icon whose stored cell is in-bounds claims it, first-come first-served by registry order. The `setIconPosition` reducer prevents stored-cell duplicates so collisions in this pass don't normally happen.
-2. **Reflow overflow** — any icon whose stored cell is out of bounds is placed in the first free cell on its preferred side; if that side is full, it spills onto the other side. If both sides are full, the icon falls back to `(side: preferred, col: 0, row: 0)` — degraded but visible. Real workflows shouldn't hit this; the user can enlarge the desktop to recover their layout.
+1. **Keep what fits** — every icon whose stored cell is `(col < maxColsPerSide, row < maxRows)` claims it, first-come first-served by registry order. The `setIconPosition` reducer prevents stored-cell duplicates so collisions in this pass don't normally happen.
+2. **Reflow overflow** — any icon whose stored cell is out of bounds is placed in the first free `(col < maxColsPerSide, row < maxRows)` cell on its preferred side; if that side is full, it spills onto the other side. If both sides are full, the icon falls back to `(side: preferred, col: 0, row: 0)` — degraded but visible. Real workflows shouldn't hit this; the user can enlarge the desktop to recover their layout.
 
 Memoized with `useMemo` so the two-pass algorithm only runs when `iconPositions` or `parentSize` changes — not on every render.
 
@@ -107,7 +107,7 @@ This preserves the invariant "at most one icon per cell" without ever rejecting 
 
 ## Icons
 
-Each window has a matching SVG at `web/public/icons/<id>.svg` — resolved by the `iconPath(def)` helper from the registry. The same SVG is reused at three different sizes (32px on the desktop, 18px in the start menu, 16px on the taskbar) — the `<img>` element scales the vector, no per-size variants needed.
+Each window has a matching SVG at `web/public/icons/<id>.svg` — resolved by the `iconPath(def)` helper from the registry. The same SVG is reused at three different sizes (40px on the desktop, 18px in the start menu, 16px on the taskbar) — the `<img>` element scales the vector, no per-size variants needed.
 
 The chrome components (`DesktopIcon`, `StartMenu`, `TaskbarButton`) render `<img src={iconPath(def)} alt="" aria-hidden style={...sizing}>`. The label below is what announces the page; the icon is decorative and aria-hidden.
 

@@ -127,10 +127,18 @@ function formatNumber(n: number): string {
   return n.toFixed(4).replace(/\.?0+$/, "");
 }
 
-// One-sentence factual narrative per metric. Picks the highest- and
-// lowest-normalized components (after sign inversion, so "lowest" is
-// the worst-performing dimension regardless of formula sign). When
-// the metric has no usable components, falls back to a bare score line.
+// One-sentence factual narrative per metric. Picks components by their
+// weighted impact on the metric's score, not by raw normalized %:
+//
+//   rating = Σ (share_i / 100) × normalized_i
+//
+// so each component contributes `share × normalized / 100` rating points
+// and could add `share × (100 − normalized) / 100` more if it reached
+// 100%. "Highest contribution" = max of the former, "Greatest improvement
+// opportunity" = max of the latter. Ranking on raw normalized would
+// mislabel a low-weight 90% component as the biggest contributor and a
+// low-weight 10% component as the biggest opportunity — neither moves
+// the metric's score much.
 function narrativeFor(data: MetricEvalData): string {
   if (data.rating === null) {
     return "No rating available — the formula does not currently evaluate.";
@@ -139,16 +147,19 @@ function narrativeFor(data: MetricEvalData): string {
   if (usable.length === 0) {
     return `Score: ${Math.round(data.rating)}/100.`;
   }
-  const top = usable.reduce((a, b) =>
-    (a.normalized ?? -Infinity) >= (b.normalized ?? -Infinity) ? a : b,
+  const withImpact = usable.map((c) => ({
+    c,
+    contribution: (c.share * c.normalized!) / 100,
+    uplift: (c.share * (100 - c.normalized!)) / 100,
+  }));
+  const top = withImpact.reduce((a, b) =>
+    a.contribution >= b.contribution ? a : b,
   );
-  const bottom = usable.reduce((a, b) =>
-    (a.normalized ?? Infinity) <= (b.normalized ?? Infinity) ? a : b,
-  );
-  if (top.name === bottom.name) {
-    return `Score: ${Math.round(data.rating)}/100. Single component: ${top.name} (${Math.round(top.normalized!)}% normalized).`;
+  const bottom = withImpact.reduce((a, b) => (a.uplift >= b.uplift ? a : b));
+  if (top.c.name === bottom.c.name) {
+    return `Score: ${Math.round(data.rating)}/100. Single component: ${top.c.name} (${Math.round(top.c.normalized!)}% normalized).`;
   }
-  return `Score: ${Math.round(data.rating)}/100. Highest contribution: ${top.name} (${Math.round(top.normalized!)}% normalized). Greatest improvement opportunity: ${bottom.name} (${Math.round(bottom.normalized!)}%).`;
+  return `Score: ${Math.round(data.rating)}/100. Highest contribution: ${top.c.name} (~${Math.round(top.contribution)} pts of the score). Greatest improvement opportunity: ${bottom.c.name} (~${Math.round(bottom.uplift)} pts to gain).`;
 }
 
 // Aggregates rating × materiality for a list of metric evaluations.
@@ -446,25 +457,53 @@ function MetricSection({
                 <th style={styles.thRight}>Raw</th>
                 <th style={styles.thRight}>Normalized</th>
                 <th style={styles.thRight}>Share</th>
+                {/* Contribution = share × normalized / 100, the rating
+                    points this component currently delivers to the
+                    metric's 0-100 score. Headroom = share × (100 −
+                    normalized) / 100, the points still on the table if
+                    it reached 100% normalized. The two columns make the
+                    weighted-impact picks in the narrative above
+                    verifiable per-row at a glance — no mental math
+                    against share × normalized. */}
+                <th style={styles.thRight}>Contribution</th>
+                <th style={styles.thRight}>Headroom</th>
               </tr>
             </thead>
             <tbody>
-              {data.components.map((c) => (
-                <tr key={c.name}>
-                  <td style={styles.tdLeftMono}>{c.name}</td>
-                  <td style={styles.tdLeft}>
-                    {c.sign === 1 ? "Higher = better" : "Lower = better"}
-                  </td>
-                  <td style={styles.tdLeftMono}>{formatRange(c.range)}</td>
-                  <td style={styles.tdRightMono}>{c.rawDisplay}</td>
-                  <td style={styles.tdRightMono}>
-                    {c.normalized !== null
-                      ? `${Math.round(c.normalized)}%`
-                      : "—"}
-                  </td>
-                  <td style={styles.tdRightMono}>{c.share.toFixed(1)}%</td>
-                </tr>
-              ))}
+              {data.components.map((c) => {
+                const contribution =
+                  c.normalized === null
+                    ? null
+                    : (c.share * c.normalized) / 100;
+                const headroom =
+                  c.normalized === null
+                    ? null
+                    : (c.share * (100 - c.normalized)) / 100;
+                return (
+                  <tr key={c.name}>
+                    <td style={styles.tdLeftMono}>{c.name}</td>
+                    <td style={styles.tdLeft}>
+                      {c.sign === 1 ? "Higher = better" : "Lower = better"}
+                    </td>
+                    <td style={styles.tdLeftMono}>{formatRange(c.range)}</td>
+                    <td style={styles.tdRightMono}>{c.rawDisplay}</td>
+                    <td style={styles.tdRightMono}>
+                      {c.normalized !== null
+                        ? `${Math.round(c.normalized)}%`
+                        : "—"}
+                    </td>
+                    <td style={styles.tdRightMono}>{c.share.toFixed(1)}%</td>
+                    <td style={styles.tdRightMono}>
+                      {contribution !== null
+                        ? `${Math.round(contribution)} pts`
+                        : "—"}
+                    </td>
+                    <td style={styles.tdRightMono}>
+                      {headroom !== null ? `${Math.round(headroom)} pts` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </>

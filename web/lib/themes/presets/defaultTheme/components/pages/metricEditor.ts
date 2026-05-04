@@ -601,12 +601,46 @@ export const metricEditor = {
   //   Raw weight (n / MAX)
   //   "[min] - [max]" range editor
   //   Share %
+  //   Contribution (rating pts the row is currently delivering: share × normalized / 100)
+  //   Headroom (rating pts still on the table at 100% normalized: share × (100 − normalized) / 100)
   weightsRow: {
     display: "grid",
-    gridTemplateColumns: "minmax(140px, 1fr) 1.6fr 60px 150px 56px",
+    // Trailing two cells (80px each) hold the live Contribution and
+    // Headroom readouts in rating points. Same 0-100 scale as the
+    // metric's score, formatted "N pts" — at 12px monospace, 80px
+    // fits the value plus matches the header label width above it.
+    gridTemplateColumns:
+      "minmax(140px, 1fr) 1.6fr 60px 150px 56px 80px 80px",
     alignItems: "center",
     gap: "10px",
     padding: "3px 0",
+  } as CSSProperties,
+
+  // Header row above the slider rows — labels Range / Share /
+  // Contribution / Headroom so the trailing numeric cells aren't a wall
+  // of unlabelled "X pts" / "Y pts". Same grid template as `weightsRow`
+  // so the columns align exactly. Cells for the Variable, Slider, and
+  // Raw-weight columns are intentionally left blank — those values are
+  // self-evident in context (the variable name itself, the slider
+  // chrome, "n / MAX") and a label there would just be visual noise.
+  weightsHeader: {
+    display: "grid",
+    gridTemplateColumns:
+      "minmax(140px, 1fr) 1.6fr 60px 150px 56px 80px 80px",
+    alignItems: "end",
+    gap: "10px",
+    padding: "8px 0 4px 0",
+    borderBottom: `1px solid ${BEVEL_DARK}`,
+    marginBottom: "4px",
+    fontSize: "10px",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: COLORS.gray500,
+  } as CSSProperties,
+
+  weightsHeaderCell: {
+    textAlign: "right",
+    fontWeight: 600,
   } as CSSProperties,
 
   // Variable name on the left of each slider row. Coloured per the

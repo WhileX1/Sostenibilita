@@ -45,6 +45,7 @@ import { MAX_WEIGHT } from "@/lib/scoring/config";
 import {
   DEFAULT_RANGE,
   DEFAULT_VAR_WEIGHT,
+  normalizeToPercent,
   ratingFromEval,
 } from "@/lib/scoring/rating";
 
@@ -241,6 +242,14 @@ export default function MetricEditor({
               scoreVars={scoreVars}
               weights={config.weights}
               ranges={config.ranges}
+              // Pass the live evaluation scope so each row can render
+              // its own normalized %, contribution, and headroom in
+              // rating points. Null when the formula doesn't compile
+              // or doesn't evaluate cleanly — rows then fall back to a
+              // dash for the impact cells.
+              evalScope={
+                evalResult && evalResult.ok ? evalResult.value.scope : null
+              }
               inputNameSet={inputNameSet}
               onChangeWeight={(name, weight) =>
                 dispatch(setVarWeight({ metricId, name, weight }))
@@ -350,7 +359,19 @@ function MaterialityPanel({
 //     100% shares across the visible variables);
 //   * a [min, max] judgement range that maps the variable's native
 //     scale onto 0..100 before the rating is computed;
-//   * the resulting share %.
+//   * the resulting share %;
+//   * **contribution** — rating points the row is currently delivering
+//     to the metric's 0-100 score (`share × normalized / 100`);
+//   * **headroom** — rating points the row could still add at 100%
+//     normalized (`share × (100 − normalized) / 100`).
+//
+// Contribution and headroom answer "where is the score coming from
+// right now" and "where is the biggest lever to improve it" — same
+// arithmetic the report's narrative uses to pick its top contributor /
+// improvement opportunity. Surfacing them live next to the slider lets
+// the user re-balance weights (or fix inputs / tighten ranges) and
+// watch the impact in rating-point units instead of having to convert
+// from the share % they're dragging.
 //
 // The sign comes from the formula text (lifted by `extractScoreVars`)
 // and is read-only here — the user's authoritative way to express
@@ -360,6 +381,7 @@ function WeightsSection({
   scoreVars,
   weights,
   ranges,
+  evalScope,
   inputNameSet,
   onChangeWeight,
   onChangeRange,
@@ -368,6 +390,7 @@ function WeightsSection({
   scoreVars: ScoreVar[];
   weights: Record<string, number>;
   ranges: Record<string, VarRange>;
+  evalScope: Record<string, Value> | null;
   inputNameSet: Set<string>;
   onChangeWeight: (name: string, weight: number) => void;
   onChangeRange: (name: string, range: VarRange) => void;
@@ -385,8 +408,34 @@ function WeightsSection({
         variable&apos;s native scale counts as <em>0</em> and <em>100</em>{" "}
         on the rating). A variable subtracted in the formula{" "}
         (<code>− name</code>) is read as &ldquo;lower is better&rdquo; —
-        the system inverts its normalized value before averaging.
+        the system inverts its normalized value before averaging.{" "}
+        <strong>Contribution</strong> is the rating points the variable
+        currently delivers to the score; <strong>headroom</strong> is
+        the rating points it could still add at 100% normalized.
       </p>
+      {/* Header row — labels only the cells whose meaning isn't obvious
+          from their value (Range / Share / Contribution / Headroom).
+          Variable name, slider, and "n / MAX" raw weight are
+          self-explanatory in context; labelling them here would just
+          add noise. Same grid template as `weightsRow` keeps the
+          headers vertically aligned with the data cells below. */}
+      <div style={styles.weightsHeader} aria-hidden>
+        <span />
+        <span />
+        <span />
+        {/* RANGE label is left-aligned to match the range editor below
+            (an inline-flex `[min] – [max]` block that takes its
+            natural width starting from the left of its cell). The
+            other three numeric columns are right-aligned, both in
+            their headers and in the data values, so a single
+            `weightsHeaderCell` works for them. */}
+        <span style={{ ...styles.weightsHeaderCell, textAlign: "left" }}>
+          Range
+        </span>
+        <span style={styles.weightsHeaderCell}>Share</span>
+        <span style={styles.weightsHeaderCell}>Contribution</span>
+        <span style={styles.weightsHeaderCell}>Headroom</span>
+      </div>
       {scoreVars.map(({ name, sign }) => {
         const w = weights[name] ?? DEFAULT_VAR_WEIGHT;
         const share = totalRaw === 0 ? 0 : (w / totalRaw) * 100;
@@ -394,6 +443,28 @@ function WeightsSection({
         const labelStyle = inputNameSet.has(name)
           ? styles.weightsLabelInput
           : styles.weightsLabelComputed;
+        // Live impact for the row. Mirrors `ratingFromEval`'s per-component
+        // arithmetic: read the variable's value from the eval scope, normalize
+        // through its range, invert if the formula sign is `−`, then split the
+        // share into "delivered" and "remaining" rating points. Null whenever
+        // the value isn't a coercible number (or the formula didn't evaluate)
+        // — rows then render a dash for both impact cells, matching the
+        // "—" elsewhere in the editor for non-evaluable state.
+        const v = evalScope?.[name];
+        let normalized: number | null = null;
+        if (typeof v === "number") {
+          let n = normalizeToPercent(v, range);
+          if (sign === -1) n = 100 - n;
+          normalized = n;
+        } else if (typeof v === "boolean") {
+          let n = normalizeToPercent(v ? 1 : 0, range);
+          if (sign === -1) n = 100 - n;
+          normalized = n;
+        }
+        const contribution =
+          normalized === null ? null : (share * normalized) / 100;
+        const headroom =
+          normalized === null ? null : (share * (100 - normalized)) / 100;
         return (
           <div key={name} style={styles.weightsRow}>
             <span style={labelStyle} title={name}>
@@ -422,6 +493,20 @@ function WeightsSection({
               onChange={(next) => onChangeRange(name, next)}
             />
             <span style={styles.weightsShare}>{share.toFixed(1)}%</span>
+            <span
+              style={styles.weightsShare}
+              title="Contribution: rating points this variable is currently delivering to the score (share × normalized / 100)"
+            >
+              {contribution !== null
+                ? `${Math.round(contribution)} pts`
+                : "—"}
+            </span>
+            <span
+              style={styles.weightsShare}
+              title="Headroom: rating points still on the table at 100% normalized (share × (100 − normalized) / 100)"
+            >
+              {headroom !== null ? `${Math.round(headroom)} pts` : "—"}
+            </span>
           </div>
         );
       })}

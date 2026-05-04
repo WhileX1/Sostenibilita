@@ -33,7 +33,7 @@ Win2K "classic" mode separates selection from launch:
 - **Single click** → select the icon (replace selection set with `{id}`, or toggle if `Ctrl`/`Cmd` is held for additive selection).
 - **Double click** → open the window: dispatch `openWindow(def.id)` + `router.push(def.route)`.
 - **Click on empty desktop** → clear the selection.
-- **Drag on empty desktop** → marquee (rubber-band) selection, replaces the selection with whichever icons intersect the rectangle on release.
+- **Drag on empty desktop** → marquee (rubber-band) selection, replaces the selection with whichever icons intersect the rectangle. The selection updates **live on every `mousemove`**, not just on release — every icon currently swept paints its selected state under the rubber-band, matching Win2K. Without the live update, only the icon directly under the cursor reacted (its `rootHover`) while the rest of the swept group looked unselected until release.
 
 Selection state is local to the `Desktop` component (`useState<Set<string>>`) — it doesn't need to survive route changes, so Redux would be overkill. Selected icons get `theme.desktopIcon.rootSelected` (a stronger blue tint than `rootHover`), `iconSelected` (a slight opacity dim so the tint reads through), and `labelSelected` (sticky blue background, mirrors `labelHover`).
 
@@ -93,7 +93,7 @@ A previous iteration computed absolute `x` for every icon (`parentWidth - paddin
 - **Double click** → `handleIconOpen(id)` — dispatches `openWindow` + `router.push`.
 - Both handlers early-return if `wasDraggedRef.current` is set, so a real drag never accidentally triggers selection or open.
 - **Click on empty desktop** → clears the selection.
-- **Drag on empty desktop** → marquee selection (replaces selection with intersecting icons on release).
+- **Drag on empty desktop** → marquee selection: each `mousemove` past the 4px threshold replaces the selection with the icons currently inside the rubber-band, so the swept group lights up live. The intersection helper is captured at mousedown over the *resolved* cells — icons can't reflow mid-drag, so the snapshot stays correct for the whole gesture.
 
 ### Snap-to-grid + no-overlap by swap
 

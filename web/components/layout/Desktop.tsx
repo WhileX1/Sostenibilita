@@ -413,8 +413,10 @@ export function Desktop({ children }: { children?: ReactNode }) {
   // - the gesture stays still → treated as a click on empty space that
   //   clears the current selection.
   // - the gesture drags > MARQUEE_THRESHOLD pixels → live rubber-band
-  //   rectangle that, on release, replaces the selection with whichever
-  //   icons intersect.
+  //   rectangle that updates the selection on every move with whichever
+  //   icons currently intersect (so swept icons highlight in real time,
+  //   matching Win2K behavior — without the live update only the icon
+  //   directly under the cursor would visibly react).
   const handleDesktopMouseDown = (e: React.MouseEvent) => {
     if (e.target !== e.currentTarget) return; // an icon/window will handle it
     if (e.button !== 0) return;
@@ -423,10 +425,30 @@ export function Desktop({ children }: { children?: ReactNode }) {
     const startY = e.clientY - rect.top;
     let dragged = false;
     let releaseUserSelect: (() => void) | null = null;
-    // Track the latest marquee rect in a closure so onUp can read it
-    // directly without going through setMarquee's updater callback —
-    // updaters must be pure (no setSelectedIds inside).
-    let lastRect: MarqueeRect | null = null;
+
+    // Compute the set of icons whose bbox intersects the marquee. Reads
+    // the *resolved* cell (post-reflow), converted to absolute pixels —
+    // what the user sees and what they can sweep over has to match.
+    // Captured from the render at mousedown time; icons can't reflow
+    // mid-drag, so the snapshot stays correct for the duration.
+    const intersectingIds = (m: MarqueeRect): Set<string> => {
+      const left = Math.min(m.x1, m.x2);
+      const top = Math.min(m.y1, m.y2);
+      const w = Math.abs(m.x2 - m.x1);
+      const h = Math.abs(m.y2 - m.y1);
+      const next = new Set<string>();
+      for (const def of WINDOW_DEFINITIONS) {
+        const cell = resolvedCells[def.id];
+        if (!cell) continue;
+        const { x: rx, y: ry } = iconPixelOf(cell, rect.width);
+        if (
+          rectsIntersect(rx, ry, ICON_BBOX_W, ICON_BBOX_H, left, top, w, h)
+        ) {
+          next.add(def.id);
+        }
+      }
+      return next;
+    };
 
     const onMove = (ev: MouseEvent) => {
       const x = ev.clientX - rect.left;
@@ -439,49 +461,25 @@ export function Desktop({ children }: { children?: ReactNode }) {
         releaseUserSelect = lockBodyUserSelect();
       }
       if (dragged) {
-        const next = { x1: startX, y1: startY, x2: x, y2: y };
-        lastRect = next;
-        setMarquee(next);
+        const nextRect = { x1: startX, y1: startY, x2: x, y2: y };
+        setMarquee(nextRect);
+        // Commit the selection on every move so swept icons show their
+        // selected state (rootSelected tint + labelSelected blue) live
+        // under the rubber-band. React 18 auto-batches both setStates
+        // into a single render even from a document-level handler.
+        setSelectedIds(intersectingIds(nextRect));
       }
     };
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
       if (releaseUserSelect) releaseUserSelect();
-      if (dragged && lastRect) {
-        // Commit selection from the final rectangle. Marquee intersection
-        // uses the *resolved* cell (which accounts for resize-time reflow),
-        // converted to absolute pixels here — what the user sees and what
-        // they can sweep over has to match.
-        const left = Math.min(lastRect.x1, lastRect.x2);
-        const top = Math.min(lastRect.y1, lastRect.y2);
-        const w = Math.abs(lastRect.x2 - lastRect.x1);
-        const h = Math.abs(lastRect.y2 - lastRect.y1);
-        const next = new Set<string>();
-        for (const def of WINDOW_DEFINITIONS) {
-          const cell = resolvedCells[def.id];
-          if (!cell) continue;
-          const { x: rx, y: ry } = iconPixelOf(cell, rect.width);
-          if (
-            rectsIntersect(
-              rx,
-              ry,
-              ICON_BBOX_W,
-              ICON_BBOX_H,
-              left,
-              top,
-              w,
-              h,
-            )
-          ) {
-            next.add(def.id);
-          }
-        }
-        setSelectedIds(next);
-      } else if (!dragged) {
+      if (!dragged) {
         // Click without drag — deselect everything.
         setSelectedIds(new Set());
       }
+      // When dragged, the selection is already current from the last
+      // onMove; nothing left to commit here.
       setMarquee(null);
     };
     document.addEventListener("mousemove", onMove);

@@ -1,0 +1,245 @@
+@import "tailwindcss";
+
+/* Wallpaper at the body layer — the browser starts the image fetch as
+   soon as CSS is parsed, well before React hydrates and renders the
+   `Desktop` component (which has its own copy of the same `background-
+   image`). Without this, the body falls back to the browser's default
+   white between first paint and the desktop's first paint, producing a
+   visible white flash on cold loads. The fallback `background-color`
+   covers the brief gap before the JPG itself arrives — picked to match
+   the dominant sky tone of the wallpaper (Bliss / XP) so the transition
+   to the loaded image is barely perceptible. */
+body {
+  background-color: #4a7ba0;
+  background-image: url('/windows_og_background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Theme palette as CSS custom properties. Mirrors `web/lib/themes/tokens.ts`
+   — keep in sync if a value changes there. The properties are exposed for
+   rules that can't use inline styles (native pseudo-elements like
+   `::-webkit-slider-thumb`, `::-webkit-scrollbar*`, etc.); the rest of the
+   app reads colors via the JS theme system, not these vars. */
+:root {
+  --color-black:        #000000;
+  --color-white:        #FFFFFF;
+  --color-gray-200:     #DFDFDF;
+  --color-gray-500:     #808080;
+  --color-gray-700:     #404040;
+  --color-beige:        #D4D0C8;
+  --color-blue-100:     #A6CAF0;
+  --color-blue-900:     #0A246A;
+
+  /* Bevel aliases — match `web/lib/themes/presets/defaultTheme/constants.ts`. */
+  --bevel-light:        var(--color-white);
+  --bevel-hilite:       var(--color-gray-200);
+  --bevel-shadow:       var(--color-gray-500);
+  --bevel-dark:         var(--color-gray-700);
+
+  /* Surface aliases — same. */
+  --surface-primary:    var(--color-beige);
+}
+
+/* Win2K-style range slider. Native pseudo-elements (track, thumb) can't be
+   styled via inline styles, so the rules live here. Colors come from the
+   `:root` custom properties above so the JS theme system stays the only
+   place where hex values are declared. */
+.win2k-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 18px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Track — sunken bevel: dark on top-left, light on bottom-right. */
+.win2k-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--surface-primary);
+  box-shadow: inset 1px 1px 0 var(--bevel-dark), inset -1px -1px 0 var(--bevel-light);
+}
+.win2k-slider::-moz-range-track {
+  height: 4px;
+  background: var(--surface-primary);
+  box-shadow: inset 1px 1px 0 var(--bevel-dark), inset -1px -1px 0 var(--bevel-light);
+}
+
+/* Thumb — raised bevel block, classic Win2K vertical handle. */
+.win2k-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 18px;
+  background: var(--surface-primary);
+  border: none;
+  border-radius: 0;
+  margin-top: -7px;
+  box-shadow:
+    inset 1px 1px 0 var(--bevel-light),
+    inset 2px 2px 0 var(--bevel-hilite),
+    inset -1px -1px 0 var(--bevel-dark),
+    inset -2px -2px 0 var(--bevel-shadow);
+}
+.win2k-slider::-moz-range-thumb {
+  width: 12px;
+  height: 18px;
+  background: var(--surface-primary);
+  border: none;
+  border-radius: 0;
+  box-shadow:
+    inset 1px 1px 0 var(--bevel-light),
+    inset 2px 2px 0 var(--bevel-hilite),
+    inset -1px -1px 0 var(--bevel-dark),
+    inset -2px -2px 0 var(--bevel-shadow);
+}
+
+/* Hover — brighten the thumb face (same UX concession as `iconButtonHover`
+   in window.ts; Win2K classic had no hover, but mouse users expect it). */
+.win2k-slider:hover::-webkit-slider-thumb {
+  background: var(--bevel-hilite);
+}
+.win2k-slider:hover::-moz-range-thumb {
+  background: var(--bevel-hilite);
+}
+
+/* Focus — dotted outline around the slider, same pattern as Win2K buttons. */
+.win2k-slider:focus-visible {
+  outline: 1px dotted var(--bevel-dark);
+  outline-offset: 2px;
+}
+
+/* Pressed (dragging) — invert the thumb bevel for a sunken feel. */
+.win2k-slider:active::-webkit-slider-thumb {
+  box-shadow:
+    inset 1px 1px 0 var(--bevel-dark),
+    inset 2px 2px 0 var(--bevel-shadow),
+    inset -1px -1px 0 var(--bevel-light),
+    inset -2px -2px 0 var(--bevel-hilite);
+}
+.win2k-slider:active::-moz-range-thumb {
+  box-shadow:
+    inset 1px 1px 0 var(--bevel-dark),
+    inset 2px 2px 0 var(--bevel-shadow),
+    inset -1px -1px 0 var(--bevel-light),
+    inset -2px -2px 0 var(--bevel-hilite);
+}
+
+/* Print stylesheet for the Reporting CSRD window.
+   When the user hits the "Print / Save as PDF" button, the browser's
+   print preview should show JUST the report — *all* of it — with
+   no taskbar, no other windows, no Win2K shell.
+
+   The full picture: a printed CSRD-style statement is multi-page,
+   sometimes ten pages long. The Win2K shell that hosts the report is
+   actively *hostile* to that idea — the window root has
+   `position: absolute; inset: 10%` (an 80% viewport bounding box),
+   the bodyContent has `overflow: auto` (a scrollable inner viewport),
+   and the desktop wraps everything in a height-constrained container.
+   On screen those constraints make the window feel right; for print
+   they would clip the report to whatever fits inside that 80% box,
+   producing the "simplified" / truncated output we don't want.
+
+   The strategy:
+     1. Hide every element on the page via `visibility: hidden`, then
+        re-show the `.printable-report` subtree. `visibility` keeps
+        the layout intact (so absolute-positioned descendants don't
+        collapse) but paints the chrome invisible.
+     2. Strip layout constraints from every ancestor of the report
+        via `*:has(.printable-report)`: kill the absolute positioning
+        of the window, the `overflow: auto` of bodyContent, the
+        height constraints, the margins. The report's ancestors
+        become a transparent flow container so the print engine sees
+        an unconstrained document and paginates the content
+        naturally across pages.
+     3. Reset the report itself to `position: static` so it flows
+        from the top of the page and grows to the natural height of
+        its content (which is what enables multi-page printing).
+     4. Force `overflow: visible` on every descendant of the report
+        so any internal scroll containers (long `<pre>` blocks,
+        `breakInside: avoid` cards) don't clip during pagination.
+
+   Elements inside the report that should NOT print (the print
+   button itself) get the `.no-print` class. */
+@media print {
+  body * { visibility: hidden; }
+  .printable-report, .printable-report * { visibility: visible; }
+
+  /* Lift every ancestor of the report out of its on-screen layout
+     role so the report becomes a top-level flow container during
+     print. Without this the window's `position: absolute; inset: 10%`
+     and the bodyContent's `overflow: auto` clip the report to the
+     visible window viewport — exactly the truncated "simplified"
+     output we're trying to avoid. */
+  *:has(.printable-report) {
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+
+  .printable-report {
+    position: static !important;
+    width: 100% !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+    /* Force the browser to honour our background colours instead of
+       suppressing them for ink-saving. Without this Chrome / Edge
+       drop the rating bar fills, the metric block backgrounds, and
+       the formula code-block surface — leaving the report visually
+       gutted (the colour-banded bars in particular degrade to bare
+       outlines). The score panel's red number and other text-only
+       colours print fine without this, but background-paint surfaces
+       need the explicit opt-in. Both the standard and -webkit prefix
+       set so Chromium and Safari honour it. */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .printable-report * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Defeat any inner overflow / height constraints in the report
+     itself (long `<pre>` blocks with overflow-x: auto, etc.) so the
+     print engine sees the full content and paginates cleanly. */
+  .printable-report * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .no-print { display: none !important; }
+
+  /* Default page margins for printers — leave a finger of whitespace
+     on every edge so headers/footers added by the browser don't
+     crash into our content. */
+  @page { margin: 1.5cm; }
+}
+
+/* Hide the native spinner buttons on number inputs. The metric editor's
+   value column is sized for the digits themselves (~110px); the
+   spinners painted *outside* the input box on Chromium-based browsers
+   and overlapped the row's "remove" (×) button next door. The user can
+   still type or paste numbers — the up/down arrows are pure
+   convenience and don't fit Win2K's flat, bevel-bordered form vocab. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

@@ -43,6 +43,20 @@ export const window = {
     padding: "3px",
   } as CSSProperties,
 
+  // Folder windows open at a tighter default than content windows. A
+  // folder is just a navigational shell (sidebar + a small grid of
+  // icons) — at 80% of the desktop it leaves a sea of empty white below
+  // the icons, which reads as "broken layout" rather than breathing
+  // room. The values below land at roughly 56% × 64% of the desktop:
+  // wide enough that 6 icons fit comfortably alongside the 150px
+  // sidebar without crowding, narrow enough that the empty area below
+  // the first row stays modest. The maximise toggle still overrides
+  // this via `rootMaximized`, so users who want a full-screen folder
+  // can opt in.
+  rootFolder: {
+    inset: "18% 22%",
+  } as CSSProperties,
+
   // Maximize override: fill the desktop area edge-to-edge. The window is
   // a child of `Desktop`, so `inset: 0` covers the wallpaper but leaves the
   // bottombar alone — the taskbar stays visible.

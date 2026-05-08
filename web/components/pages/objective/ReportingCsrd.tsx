@@ -286,32 +286,34 @@ export default function ReportingCsrd() {
           their own editor — together with their reason — appear in
           the sub-section below.
         </p>
-        <table style={styles.materialityTable}>
-          <thead>
-            <tr>
-              <th style={styles.thLeft}>Topic</th>
-              <th style={styles.thLeft}>ESRS</th>
-              <th style={styles.thRight}>Weight</th>
-              <th style={styles.thRight}>Share of total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {materialRows.map(({ meta, weight }) => {
-              const share =
-                totalMateriality === 0
-                  ? 0
-                  : (weight / totalMateriality) * 100;
-              return (
-                <tr key={meta.id}>
-                  <td style={styles.tdLeft}>{meta.title}</td>
-                  <td style={styles.tdLeftMono}>{meta.esrs?.code ?? "—"}</td>
-                  <td style={styles.tdRightMono}>{weight}</td>
-                  <td style={styles.tdRightMono}>{share.toFixed(1)}%</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div style={styles.tableScroll}>
+          <table style={styles.materialityTable}>
+            <thead>
+              <tr>
+                <th style={styles.thLeft}>Topic</th>
+                <th style={styles.thLeft}>ESRS</th>
+                <th style={styles.thRight}>Weight</th>
+                <th style={styles.thRight}>Share of total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {materialRows.map(({ meta, weight }) => {
+                const share =
+                  totalMateriality === 0
+                    ? 0
+                    : (weight / totalMateriality) * 100;
+                return (
+                  <tr key={meta.id}>
+                    <td style={styles.tdLeft}>{meta.title}</td>
+                    <td style={styles.tdLeftMono}>{meta.esrs?.code ?? "—"}</td>
+                    <td style={styles.tdRightMono}>{weight}</td>
+                    <td style={styles.tdRightMono}>{share.toFixed(1)}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
         <h3 style={styles.h3}>Topics not assessed</h3>
         {notAssessedRows.length === 0 ? (
@@ -322,21 +324,23 @@ export default function ReportingCsrd() {
             </em>
           </p>
         ) : (
-          <table style={styles.notAssessedTable}>
-            <tbody>
-              {notAssessedRows.map(({ meta, data }) => (
-                <tr key={meta.id}>
-                  <td style={styles.tdLeftMono}>{meta.esrs?.code ?? "—"}</td>
-                  <td style={styles.tdLeft}>
-                    {meta.esrs?.topic ?? meta.title}
-                  </td>
-                  <td style={styles.tdLeftItalic}>
-                    {data.config.notMaterialReason ?? "Not material."}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={styles.tableScroll}>
+            <table style={styles.notAssessedTable}>
+              <tbody>
+                {notAssessedRows.map(({ meta, data }) => (
+                  <tr key={meta.id}>
+                    <td style={styles.tdLeftMono}>{meta.esrs?.code ?? "—"}</td>
+                    <td style={styles.tdLeft}>
+                      {meta.esrs?.topic ?? meta.title}
+                    </td>
+                    <td style={styles.tdLeftItalic}>
+                      {data.config.notMaterialReason ?? "Not material."}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
@@ -448,64 +452,66 @@ function MetricSection({
       {data.components.length > 0 && (
         <>
           <h4 style={styles.h4}>Components</h4>
-          <table style={styles.componentsTable}>
-            <thead>
-              <tr>
-                <th style={styles.thLeft}>Component</th>
-                <th style={styles.thLeft}>Direction</th>
-                <th style={styles.thLeft}>Range</th>
-                <th style={styles.thRight}>Raw</th>
-                <th style={styles.thRight}>Normalized</th>
-                <th style={styles.thRight}>Share</th>
-                {/* Contribution = share × normalized / 100, the rating
-                    points this component currently delivers to the
-                    metric's 0-100 score. Headroom = share × (100 −
-                    normalized) / 100, the points still on the table if
-                    it reached 100% normalized. The two columns make the
-                    weighted-impact picks in the narrative above
-                    verifiable per-row at a glance — no mental math
-                    against share × normalized. */}
-                <th style={styles.thRight}>Contribution</th>
-                <th style={styles.thRight}>Headroom</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.components.map((c) => {
-                const contribution =
-                  c.normalized === null
-                    ? null
-                    : (c.share * c.normalized) / 100;
-                const headroom =
-                  c.normalized === null
-                    ? null
-                    : (c.share * (100 - c.normalized)) / 100;
-                return (
-                  <tr key={c.name}>
-                    <td style={styles.tdLeftMono}>{c.name}</td>
-                    <td style={styles.tdLeft}>
-                      {c.sign === 1 ? "Higher = better" : "Lower = better"}
-                    </td>
-                    <td style={styles.tdLeftMono}>{formatRange(c.range)}</td>
-                    <td style={styles.tdRightMono}>{c.rawDisplay}</td>
-                    <td style={styles.tdRightMono}>
-                      {c.normalized !== null
-                        ? `${Math.round(c.normalized)}%`
-                        : "—"}
-                    </td>
-                    <td style={styles.tdRightMono}>{c.share.toFixed(1)}%</td>
-                    <td style={styles.tdRightMono}>
-                      {contribution !== null
-                        ? `${Math.round(contribution)} pts`
-                        : "—"}
-                    </td>
-                    <td style={styles.tdRightMono}>
-                      {headroom !== null ? `${Math.round(headroom)} pts` : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={styles.tableScroll}>
+            <table style={styles.componentsTable}>
+              <thead>
+                <tr>
+                  <th style={styles.thLeft}>Component</th>
+                  <th style={styles.thLeft}>Direction</th>
+                  <th style={styles.thLeft}>Range</th>
+                  <th style={styles.thRight}>Raw</th>
+                  <th style={styles.thRight}>Normalized</th>
+                  <th style={styles.thRight}>Share</th>
+                  {/* Contribution = share × normalized / 100, the rating
+                      points this component currently delivers to the
+                      metric's 0-100 score. Headroom = share × (100 −
+                      normalized) / 100, the points still on the table if
+                      it reached 100% normalized. The two columns make the
+                      weighted-impact picks in the narrative above
+                      verifiable per-row at a glance — no mental math
+                      against share × normalized. */}
+                  <th style={styles.thRight}>Contribution</th>
+                  <th style={styles.thRight}>Headroom</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.components.map((c) => {
+                  const contribution =
+                    c.normalized === null
+                      ? null
+                      : (c.share * c.normalized) / 100;
+                  const headroom =
+                    c.normalized === null
+                      ? null
+                      : (c.share * (100 - c.normalized)) / 100;
+                  return (
+                    <tr key={c.name}>
+                      <td style={styles.tdLeftMono}>{c.name}</td>
+                      <td style={styles.tdLeft}>
+                        {c.sign === 1 ? "Higher = better" : "Lower = better"}
+                      </td>
+                      <td style={styles.tdLeftMono}>{formatRange(c.range)}</td>
+                      <td style={styles.tdRightMono}>{c.rawDisplay}</td>
+                      <td style={styles.tdRightMono}>
+                        {c.normalized !== null
+                          ? `${Math.round(c.normalized)}%`
+                          : "—"}
+                      </td>
+                      <td style={styles.tdRightMono}>{c.share.toFixed(1)}%</td>
+                      <td style={styles.tdRightMono}>
+                        {contribution !== null
+                          ? `${Math.round(contribution)} pts`
+                          : "—"}
+                      </td>
+                      <td style={styles.tdRightMono}>
+                        {headroom !== null ? `${Math.round(headroom)} pts` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </article>

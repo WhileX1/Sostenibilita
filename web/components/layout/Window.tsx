@@ -104,6 +104,10 @@ export function Window({ id }: { id: string }) {
       aria-label={def.title}
       style={{
         ...theme.window.root,
+        // Folders open at a tighter default than content pages — applied
+        // before `rootMaximized` so the maximise toggle still wins when
+        // the user opts into a full-screen folder.
+        ...(def.kind === "folder" ? theme.window.rootFolder : null),
         ...(isMaximized ? theme.window.rootMaximized : null),
       }}
     >

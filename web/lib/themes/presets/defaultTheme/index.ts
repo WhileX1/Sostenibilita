@@ -10,6 +10,7 @@ import { strategy as objectiveStrategy } from "./components/pages/objective/stra
 import { ratingEsg as objectiveRatingEsg } from "./components/pages/objective/ratingEsg";
 import { reportingCsrd as objectiveReportingCsrd } from "./components/pages/objective/reportingCsrd";
 import { metricEditor } from "./components/pages/metricEditor";
+import { folderView } from "./components/pages/folderView";
 
 export const defaultTheme = {
   bottombar,
@@ -27,6 +28,7 @@ export const defaultTheme = {
   // need its own slice.
   pages: {
     metricEditor,
+    folderView,
     objective: {
       strategy: objectiveStrategy,
       ratingEsg: objectiveRatingEsg,

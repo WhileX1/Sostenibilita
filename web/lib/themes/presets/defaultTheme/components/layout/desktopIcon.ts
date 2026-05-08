@@ -27,7 +27,10 @@ export const desktopIcon = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    cursor: "pointer",
+    // Win2K never used the hand pointer on desktop icons — that was an
+    // IE / web convention. The default arrow keeps the OS-shell feel
+    // consistent with the rest of the chrome.
+    cursor: "default",
     fontFamily: FONT_SANS,
     fontSize: "13px",
     color: TEXT_ON_SECONDARY,

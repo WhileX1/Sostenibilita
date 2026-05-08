@@ -22,7 +22,7 @@ import {
   type IconPosition,
   type IconSide,
 } from "@/store/slices/desktopIconsSlice";
-import { WINDOW_DEFINITIONS } from "@/lib/windows/registry";
+import { DESKTOP_ITEMS } from "@/lib/windows/registry";
 import { DesktopIcon } from "./DesktopIcon";
 import { Window } from "./Window";
 
@@ -115,7 +115,7 @@ function resolveIconRenderCells(
   // construction, and the renderer's edge-anchored CSS positions them
   // correctly on both sides without needing parentWidth.
   if (parentWidth <= 0 || parentHeight <= 0) {
-    for (const def of WINDOW_DEFINITIONS) {
+    for (const def of DESKTOP_ITEMS) {
       const pos = iconPositions[def.id];
       if (pos) result[def.id] = pos;
     }
@@ -143,7 +143,7 @@ function resolveIconRenderCells(
   const overflow: { id: string; preferredSide: IconSide }[] = [];
 
   // Pass 1: keep stored positions where they still fit.
-  for (const def of WINDOW_DEFINITIONS) {
+  for (const def of DESKTOP_ITEMS) {
     const pos = iconPositions[def.id];
     if (!pos) continue;
     const fits =
@@ -304,7 +304,7 @@ export function Desktop({ children }: { children?: ReactNode }) {
       wasDraggedRef.current = false;
       return;
     }
-    const def = WINDOW_DEFINITIONS.find((w) => w.id === id);
+    const def = DESKTOP_ITEMS.find((w) => w.id === id);
     if (!def) return;
     dispatch(openWindow(def.id));
     router.push(def.route);
@@ -437,7 +437,7 @@ export function Desktop({ children }: { children?: ReactNode }) {
       const w = Math.abs(m.x2 - m.x1);
       const h = Math.abs(m.y2 - m.y1);
       const next = new Set<string>();
-      for (const def of WINDOW_DEFINITIONS) {
+      for (const def of DESKTOP_ITEMS) {
         const cell = resolvedCells[def.id];
         if (!cell) continue;
         const { x: rx, y: ry } = iconPixelOf(cell, rect.width);
@@ -507,7 +507,7 @@ export function Desktop({ children }: { children?: ReactNode }) {
           hiding the default-positioned icons before they snap to persisted
           slots. */}
       <div style={{ visibility: hydrated ? "visible" : "hidden" }}>
-      {WINDOW_DEFINITIONS.map((def) => {
+      {DESKTOP_ITEMS.map((def) => {
         const cell = resolvedCells[def.id];
         if (!cell) return null;
         // During a drag, every icon in the session renders at absolute

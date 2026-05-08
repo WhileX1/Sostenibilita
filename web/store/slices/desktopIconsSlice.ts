@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { WINDOW_DEFINITIONS } from "@/lib/windows/registry";
+import { DESKTOP_ITEMS } from "@/lib/windows/registry";
 
 // Grid geometry — exported so the Desktop component shares the same cell
 // pitch when computing render-time auto-flow on resize. Don't duplicate
@@ -29,9 +29,11 @@ interface DesktopIconsState {
 }
 
 // Default seed: split icons roughly half-and-half between the left and
-// right edges, single column on each side, top-down by registry order.
-// Exported so the persistence sanitizer can fall back to a default cell
-// for any registry id that wasn't present in the previous session.
+// right edges, single column on each side, top-down by `DESKTOP_ITEMS`
+// order. Exported so the persistence sanitizer can fall back to a
+// default cell for any desktop id that wasn't present in the previous
+// session. `total` is the number of icons being seeded — currently
+// `DESKTOP_ITEMS.length` (3 area folders + 3 Objective entries).
 export function autoPosition(index: number, total: number): IconPosition {
   const halfPoint = Math.ceil(total / 2);
   const isLeft = index < halfPoint;
@@ -89,9 +91,9 @@ function snapToGrid(
 
 const initialState: DesktopIconsState = {
   byId: Object.fromEntries(
-    WINDOW_DEFINITIONS.map((def, i) => [
+    DESKTOP_ITEMS.map((def, i) => [
       def.id,
-      autoPosition(i, WINDOW_DEFINITIONS.length),
+      autoPosition(i, DESKTOP_ITEMS.length),
     ]),
   ),
 };
@@ -136,8 +138,8 @@ const slice = createSlice({
     // Re-seed every icon to its auto-layout slot. Useful for a future
     // "auto arrange" affordance; nothing calls it yet.
     resetIconPositions: (state) => {
-      WINDOW_DEFINITIONS.forEach((def, i) => {
-        state.byId[def.id] = autoPosition(i, WINDOW_DEFINITIONS.length);
+      DESKTOP_ITEMS.forEach((def, i) => {
+        state.byId[def.id] = autoPosition(i, DESKTOP_ITEMS.length);
       });
     },
   },

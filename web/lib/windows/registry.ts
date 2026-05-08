@@ -1,10 +1,25 @@
 import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
+import {
+  EnvironmentalFolder,
+  GovernanceFolder,
+  SocialFolder,
+} from "@/components/pages/folder/folders";
 
 // A "section" groups windows in the Start menu submenus. Names match the
 // URL prefix so the section can be derived from the route if needed; we
 // still keep it explicit on each definition for clarity.
 export type WindowArea = "Environmental" | "Social" | "Governance" | "Objective";
+
+// `page` (default) → a real content window with formulas, inputs, scoring.
+// `folder` → a navigational shell on the desktop and Start menu that
+//   groups the scored metrics of one area. Folders carry no metric data,
+//   no ESRS mapping, no score; their `Component` just renders a grid of
+//   inner icons that open the underlying metric pages. Only the three
+//   E/S/G areas have a folder — the Objective area has no folder because
+//   its three entries are outputs, not metrics, and live loose on the
+//   desktop next to the folders.
+export type WindowKind = "page" | "folder";
 
 export interface WindowDefinition {
   // Stable id — used as Redux key, deep-link mapping, registry lookup, and
@@ -14,6 +29,8 @@ export interface WindowDefinition {
   title: string;
   route: string;
   area: WindowArea;
+  // Defaults to "page" when omitted.
+  kind?: WindowKind;
   // Marks an entry as a measurable ESG metric that contributes to the
   // overall score. The 15 E/S/G windows are flagged; the 3 Objective
   // windows (Reporting CSRD, Rating ESG, Strategy) are *outputs* /
@@ -36,7 +53,19 @@ export interface WindowDefinition {
 
 // Order of entries here drives default desktop icon order and Start-menu
 // section item order. Keep grouped by area, matching the previous sidebar.
+//
+// Folders come first per area so `DESKTOP_ITEMS` (folders + Objective)
+// stays in display order without an extra sort: Environmental folder,
+// Social folder, Governance folder, then the three Objective entries.
 export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
+  "folder/environmental": {
+    id: "folder/environmental",
+    title: "Environmental",
+    route: "/folder/environmental",
+    area: "Environmental",
+    kind: "folder",
+    Component: EnvironmentalFolder,
+  },
   "environmental/energy-consumption": {
     id: "environmental/energy-consumption",
     title: "Energy Consumption",
@@ -102,6 +131,14 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
     Component: dynamic(
       () => import("@/components/pages/environmental/WasteManagement"),
     ),
+  },
+  "folder/social": {
+    id: "folder/social",
+    title: "Social",
+    route: "/folder/social",
+    area: "Social",
+    kind: "folder",
+    Component: SocialFolder,
   },
   "social/human-resources": {
     id: "social/human-resources",
@@ -172,6 +209,14 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
       () => import("@/components/pages/social/ConsumersEndUsers"),
     ),
   },
+  "folder/governance": {
+    id: "folder/governance",
+    title: "Governance",
+    route: "/folder/governance",
+    area: "Governance",
+    kind: "folder",
+    Component: GovernanceFolder,
+  },
   "governance/cda": {
     id: "governance/cda",
     title: "CDA",
@@ -239,6 +284,17 @@ export const WINDOW_REGISTRY: Record<string, WindowDefinition> = {
 export const WINDOW_DEFINITIONS: WindowDefinition[] =
   Object.values(WINDOW_REGISTRY);
 
+// What renders directly on the desktop wallpaper. The 15 scored metrics
+// are tucked inside their per-area folder, so the desktop only shows
+// 6 icons: 3 folders (E/S/G) + 3 Objective outputs (Reporting CSRD,
+// Rating ESG, Strategy). The metric windows are still in the registry
+// and addressable by route — they just don't have a wallpaper icon. To
+// open one, the user double-clicks the area folder and then the metric
+// inside it (or uses the Start menu).
+export const DESKTOP_ITEMS: WindowDefinition[] = WINDOW_DEFINITIONS.filter(
+  (w) => w.kind === "folder" || w.area === "Objective",
+);
+
 // Convenience grouping for Start-menu rendering.
 export const AREAS: WindowArea[] = [
   "Environmental",
@@ -247,8 +303,41 @@ export const AREAS: WindowArea[] = [
   "Objective",
 ];
 
+// Every registered window in an area, including the area's folder shell
+// when one exists. Kept around for callers that want the *complete* list
+// — not used by the Start menu (which wants pages only) or the folder
+// view (which wants scored metrics only). Use `pagesByArea` or
+// `folderChildren` instead when those are the real intent.
 export function windowsByArea(area: WindowArea): WindowDefinition[] {
   return WINDOW_DEFINITIONS.filter((w) => w.area === area);
+}
+
+// Real content windows in an area — folders excluded. Used by the Start
+// menu: each E/S/G submenu lists the area's scored metrics, and the
+// Objective rows render flat (a folder grouping for three output windows
+// would be more friction than navigation).
+export function pagesByArea(area: WindowArea): WindowDefinition[] {
+  return WINDOW_DEFINITIONS.filter(
+    (w) => w.area === area && w.kind !== "folder",
+  );
+}
+
+// The scored metrics that live inside an area's folder window. Only
+// defined for the three areas with folders (E/S/G); calling it with
+// "Objective" returns an empty list.
+export function folderChildren(area: WindowArea): WindowDefinition[] {
+  return WINDOW_DEFINITIONS.filter(
+    (w) => w.area === area && w.scored === true,
+  );
+}
+
+// Every folder shell, in registry order. Used by the folder window's
+// left "quick access" panel — the panel lists the desktop plus all
+// three folders so the user can pivot between any of them without
+// going back to the wallpaper. The caller decides how to mark the
+// current folder.
+export function allFolders(): WindowDefinition[] {
+  return WINDOW_DEFINITIONS.filter((w) => w.kind === "folder");
 }
 
 export function getWindow(id: string): WindowDefinition | undefined {
@@ -262,6 +351,9 @@ export function findWindowByRoute(route: string): WindowDefinition | undefined {
 // Resolves the SVG icon for a window. Files live at
 // `web/public/icons/<id>.svg`; the path scheme mirrors the registry id so
 // adding a new entry only requires dropping a matching SVG into place.
+// Folder ids (`folder/environmental` etc.) naturally land at
+// `/icons/folder/<area>.svg` — the folder-shaped icons with the area
+// badge embedded — without needing a special case here.
 export function iconPath(def: WindowDefinition): string {
   return `/icons/${def.id}.svg`;
 }

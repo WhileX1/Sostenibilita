@@ -132,12 +132,21 @@ export const reportingCsrd = {
     gap: "6px",
   } as CSSProperties,
 
+  // Two side-by-side blocks at wide widths — Overall ESG on the
+  // left, the per-area list on the right — but wrap to a single
+  // stack when the window is too narrow to hold both. Grid with
+  // `minmax(180px, 1fr) minmax(220px, 1fr)` (the prior layout) was
+  // a 400-px floor: under that the second column got pushed out of
+  // the page, with no graceful fallback. Flex-wrap with `flex: 1 1
+  // <basis>` on each child gives the same paired layout when there
+  // is room and a clean vertical stack when there isn't, without
+  // ever overflowing the section.
   summaryGrid: {
     background: SURFACE_WINDOW,
     boxShadow: `inset 1px 1px 0 ${BEVEL_SHADOW}, inset 2px 2px 0 ${BEVEL_DARK}, inset -1px -1px 0 ${BEVEL_LIGHT}, inset -2px -2px 0 ${BEVEL_HILITE}`,
     padding: "12px 16px",
-    display: "grid",
-    gridTemplateColumns: "minmax(180px, 1fr) minmax(220px, 1fr)",
+    display: "flex",
+    flexWrap: "wrap",
     gap: "20px",
     alignItems: "center",
   } as CSSProperties,
@@ -146,6 +155,8 @@ export const reportingCsrd = {
     display: "flex",
     flexDirection: "column",
     gap: "2px",
+    flex: "1 1 180px",
+    minWidth: 0,
   } as CSSProperties,
 
   summaryOverallLabel: {
@@ -179,6 +190,8 @@ export const reportingCsrd = {
     display: "flex",
     flexDirection: "column",
     gap: "4px",
+    flex: "1 1 220px",
+    minWidth: 0,
   } as CSSProperties,
 
   summaryAreaItem: {
@@ -366,11 +379,34 @@ export const reportingCsrd = {
 
   // Components table — each row is one variable referenced in
   // `score = …`. Columns: Component, Direction, Range, Raw,
-  // Normalized %, Share %.
+  // Normalized %, Share %, Contribution, Headroom.
   componentsTable: {
     width: "100%",
     borderCollapse: "collapse",
     fontSize: "12px",
+  } as CSSProperties,
+
+  // Wrapper applied around every table in the report. Tables have
+  // mono content that can't compress (identifiers like
+  // `carbon_intensity`, ranges like `0.02 – 0.2`, ESRS codes), so
+  // on a narrow window the row's intrinsic minimum can exceed the
+  // section's content width and the rightmost column gets clipped.
+  // Wrapping in an `overflow-x: auto` container scrolls the table
+  // horizontally inside its section instead of pushing the whole
+  // article wider than the window. The print stylesheet in
+  // `globals.css` forces `overflow: visible` on every descendant of
+  // `.printable-report`, so this wrapper does NOT truncate the PDF
+  // — the full table prints, paginated normally.
+  //
+  // `paddingBottom` puts breathing room between the table's last
+  // dotted row border and the horizontal scrollbar. Browsers draw
+  // the scrollbar inside the wrapper's padding-box at the bottom
+  // edge, so without padding the scrollbar sits flush against the
+  // last row — which reads as visual debris rather than a control.
+  tableScroll: {
+    width: "100%",
+    overflowX: "auto",
+    paddingBottom: "6px",
   } as CSSProperties,
 
   // Shared cell styles — table headers and body cells. Variants for

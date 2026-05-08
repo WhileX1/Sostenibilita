@@ -49,12 +49,19 @@ export const ratingEsg = {
   // (left, big numerals) and the three area sub-scores (right, smaller).
   // Visually anchored at the top so the user reads the headline number
   // first, then drills down through the per-metric breakdown below.
+  //
+  // Flex-wrap rather than grid: a 2-column grid with `minmax(180px, ...)
+  // minmax(220px, ...)` imposes a ~420-px floor on the panel, and once
+  // the window narrows past it the right column gets pushed out of view
+  // with no graceful fallback. `flex: 1 1 <basis>` on each child gives
+  // the same paired layout when there is room and a clean vertical
+  // stack when there isn't.
   summaryPanel: {
     background: SURFACE_WINDOW,
     boxShadow: `inset 1px 1px 0 ${BEVEL_SHADOW}, inset 2px 2px 0 ${BEVEL_DARK}, inset -1px -1px 0 ${BEVEL_LIGHT}, inset -2px -2px 0 ${BEVEL_HILITE}`,
     padding: "12px 16px",
-    display: "grid",
-    gridTemplateColumns: "minmax(180px, 1fr) minmax(220px, 2fr)",
+    display: "flex",
+    flexWrap: "wrap",
     gap: "20px",
     alignItems: "center",
   } as CSSProperties,
@@ -63,6 +70,8 @@ export const ratingEsg = {
     display: "flex",
     flexDirection: "column",
     gap: "2px",
+    flex: "1 1 180px",
+    minWidth: 0,
   } as CSSProperties,
 
   overallLabel: {
@@ -93,12 +102,18 @@ export const ratingEsg = {
 
   // Three-row mini-table on the right of the summary panel — one row
   // per ESG area. Each row: label, score, share %.
+  //
+  // `flex: 1 1 220px, minWidth: 0` makes this a flex item of the
+  // summaryPanel above. Wide panels keep it side-by-side with the
+  // overall block; narrow panels wrap it to its own row at full width.
   areaSummary: {
     display: "grid",
     gridTemplateColumns: "minmax(90px, max-content) 1fr 56px 56px",
     rowGap: "4px",
     columnGap: "10px",
     alignItems: "baseline",
+    flex: "1 1 220px",
+    minWidth: 0,
   } as CSSProperties,
 
   areaSummaryLabel: {

@@ -10,7 +10,7 @@
 // `counter` is the boilerplate demo slice and is intentionally NOT persisted.
 
 import {
-  WINDOW_DEFINITIONS,
+  DESKTOP_ITEMS,
   WINDOW_REGISTRY,
 } from "@/lib/windows/registry";
 import { MAX_WEIGHT, SCORED_METRICS } from "@/lib/scoring/config";
@@ -176,15 +176,19 @@ function sanitize(state: PersistedState): PersistedState {
     if (order.includes(id)) maximized[id] = true;
   }
 
-  // Every registry id must have a position — pick the persisted one if
-  // valid, otherwise fall back to autoPosition. This keeps adding a new
-  // window to the registry from breaking previously-saved sessions.
+  // Every desktop-visible id must have a position — pick the persisted
+  // one if valid, otherwise fall back to autoPosition. Older blobs (from
+  // before the per-area folder rework) carry positions for the 15 metric
+  // ids that no longer render on the desktop; we silently drop them by
+  // restricting iteration to `DESKTOP_ITEMS`. Adding a new desktop entry
+  // (a future folder, an extra Objective output) automatically gets a
+  // default cell here without breaking previously-saved sessions.
   const iconsById: Record<string, IconPosition> = {};
-  WINDOW_DEFINITIONS.forEach((def, i) => {
+  DESKTOP_ITEMS.forEach((def, i) => {
     const persisted = state.desktopIcons.byId?.[def.id];
     iconsById[def.id] = isIconPosition(persisted)
       ? persisted
-      : autoPosition(i, WINDOW_DEFINITIONS.length);
+      : autoPosition(i, DESKTOP_ITEMS.length);
   });
 
   // Same shape recovery for weights: every scored metric gets an entry,
